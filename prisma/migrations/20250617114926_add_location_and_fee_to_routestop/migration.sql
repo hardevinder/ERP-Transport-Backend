@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "RouteStop" ADD COLUMN     "feeAmount" DOUBLE PRECISION,
+ADD COLUMN     "latitude" DOUBLE PRECISION,
+ADD COLUMN     "longitude" DOUBLE PRECISION;

@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Vehicle {
+  id        String   @id @default(uuid())
+  busNo     String   @unique
+  capacity  Int
+  driver    Driver?  @relation(fields: [driverId], references: [id])
+  driverId  String?
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+}
+
+model Driver {
+  id        String    @id @default(uuid())
+  name      String
+  phone     String    @unique
+  licenseNo String
+  password  String?
+  vehicle   Vehicle[]
+  route     Route[]
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+}
+
+model Route {
+  id            String                  @id @default(uuid())
+  name          String
+  startPoint    String
+  endPoint      String
+  driver        Driver?                 @relation(fields: [driverId], references: [id])
+  driverId      String?
+  stops         RouteStop[]
+  students      Student[]
+  feeStructures TransportFeeStructure[]
+  status        String                  @default("active")
+  createdAt     DateTime                @default(now())
+}
+
+model RouteStop {
+  id            String   @id @default(uuid())
+  route         Route    @relation(fields: [routeId], references: [id])
+  routeId       String
+  stopName      String
+  address       String?         // Optional address
+  stopOrder     Int
+  stopTime      String
+  latitude      Float?          // ✅ Optional latitude
+  longitude     Float?          // ✅ Optional longitude
+  feeAmount     Float?
+  students      Student[]       @relation("StopStudents")
+  feeStructures TransportFeeStructure[]
+  status        String          @default("active")
+  createdAt     DateTime        @default(now())
+}
+
+
+
+model SchoolClass {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  students  Student[]
+  createdAt DateTime  @default(now())
+}
+
+model ConcessionSetting {
+  id        String   @id @default(uuid())
+  name      String // e.g. "Sibling", "Staff Ward"
+  type      String // "fixed" | "percentage"
+  value     Float
+  createdAt DateTime @default(now())
+
+  students Student[] @relation("ConcessionToStudent")
+}
+
+model FineSetting {
+  id        String   @id @default(uuid())
+  amount    Float // e.g. 50 or 10 (per day)
+  duration  String // "fixed" | "per_day"
+  applyFrom Int // e.g. 11 = fine starts after 10th
+  createdAt DateTime @default(now())
+}
+
+model Student {
+  id              String                 @id @default(uuid())
+  admissionNumber String?                @unique
+  name            String
+  phone           String
+  password        String?
+  classId         String?
+  class           SchoolClass?           @relation(fields: [classId], references: [id])
+  route           Route?                 @relation(fields: [routeId], references: [id])
+  routeId         String?
+  stop            RouteStop?             @relation("StopStudents", fields: [stopId], references: [id])
+  stopId          String?
+  feeSlab         String
+  concessionId    String?
+  concession      ConcessionSetting?     @relation("ConcessionToStudent", fields: [concessionId], references: [id])
+  status          String                 @default("active")
+  createdAt       DateTime               @default(now())
+  transactions    TransportTransaction[]
+}
+
+model TransportFeeStructure {
+  id            String     @id @default(uuid())
+  routeId       String
+  stopId        String?
+  slab          String
+  amount        Float
+  frequency     String // monthly, quarterly, yearly
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime   @default(now())
+  route         Route      @relation(fields: [routeId], references: [id])
+  stop          RouteStop? @relation(fields: [stopId], references: [id])
+}
+
+model TransportTransaction {
+  id             String   @id @default(uuid())
+  studentId      String
+  amount         Float
+  dueAmount      Float    @default(0)
+  fine           Float    @default(0)
+  concession     Float    @default(0)
+  fineConcession Float?
+  paymentDate    DateTime @default(now())
+  mode           String // cash, online, cheque
+  status         String // success, failed, pending
+  createdAt      DateTime @default(now())
+  student        Student  @relation(fields: [studentId], references: [id])
+}
+
+model Payment {
+  id                String   @id @default(uuid())
+  razorpayPaymentId String   @unique
+  amount            Float
+  status            String
+  paidAt            DateTime
+  studentId         String
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+}
+
+model TransportOrgProfile {
+  id        String   @id @default(uuid())
+  name      String
+  address   String
+  contact   String
+  email     String
+  website   String?
+  createdAt DateTime @default(now())
+}
