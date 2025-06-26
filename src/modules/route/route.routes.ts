@@ -2,9 +2,11 @@ import { FastifyInstance } from 'fastify';
 import {
   createRoute,
   getRoutes,
+  getRouteById, // ✅ NEW
   updateRoute,
   deleteRoute,
   toggleRouteStatus,
+  addRouteStopsBulk,
 } from './route.controller';
 
 export default async function routeRoutes(server: FastifyInstance) {
@@ -12,6 +14,11 @@ export default async function routeRoutes(server: FastifyInstance) {
   server.get('/', {
     preHandler: [server.authenticate],
   }, getRoutes);
+
+  // 📥 Get route by ID
+  server.get('/:id', {
+    preHandler: [server.authenticate],
+  }, getRouteById); // ✅ NEW
 
   // ➕ Create a new route
   server.post('/', {
@@ -32,4 +39,9 @@ export default async function routeRoutes(server: FastifyInstance) {
   server.patch('/:id/status', {
     preHandler: [server.authenticate],
   }, toggleRouteStatus);
+
+  // ➕ Bulk add stops to a route
+  server.post('/add-stops', {
+    preHandler: [server.authenticate],
+  }, addRouteStopsBulk);
 }

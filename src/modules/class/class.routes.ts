@@ -7,15 +7,31 @@ import {
   deleteClass,
 } from './class.controller';
 
+import {
+  importClassesFromExcel,
+  downloadSampleClassExcel,
+} from './import.controller';
+
 const classRoutes: FastifyPluginAsync = async (fastify) => {
-  // Apply JWT authentication to all class routes
+  // ✅ Apply JWT auth middleware to all routes
   fastify.addHook('onRequest', fastify.authenticate);
 
+  // 🔁 CRUD Routes
   fastify.post('/', createClass);          // ➕ Create new class
   fastify.get('/', getAllClasses);         // 📋 Get all classes
   fastify.get('/:id', getClassById);       // 🔍 Get class by ID
   fastify.put('/:id', updateClass);        // ✏️ Update class
   fastify.delete('/:id', deleteClass);     // 🗑️ Delete class
+
+  // 📤 Download Sample Excel
+  fastify.get('/sample', downloadSampleClassExcel);
+
+  // 📥 Import Classes via Excel
+  fastify.post('/import', {
+    schema: {
+      consumes: ['multipart/form-data'],
+    },
+  }, importClassesFromExcel);
 };
 
 export default classRoutes;

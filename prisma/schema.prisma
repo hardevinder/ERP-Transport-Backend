@@ -8,13 +8,15 @@ datasource db {
 }
 
 model Vehicle {
-  id        String   @id @default(uuid())
-  busNo     String   @unique
+  id        String    @id @default(uuid())
+  busNo     String    @unique
   capacity  Int
-  driver    Driver?  @relation(fields: [driverId], references: [id])
+  driver    Driver?   @relation(fields: [driverId], references: [id])
   driverId  String?
-  status    String   @default("active")
-  createdAt DateTime @default(now())
+
+  routes    Route[]   @relation("VehicleToRoute")
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
 }
 
 model Driver {
@@ -23,8 +25,10 @@ model Driver {
   phone     String    @unique
   licenseNo String
   password  String?
+
   vehicle   Vehicle[]
-  route     Route[]
+  routes    Route[]   @relation("DriverToRoute")
+
   status    String    @default("active")
   createdAt DateTime  @default(now())
 }
@@ -34,8 +38,13 @@ model Route {
   name          String
   startPoint    String
   endPoint      String
-  driver        Driver?                 @relation(fields: [driverId], references: [id])
+
+  driver        Driver?                 @relation("DriverToRoute", fields: [driverId], references: [id])
   driverId      String?
+
+  vehicle       Vehicle?                @relation("VehicleToRoute", fields: [vehicleId], references: [id])
+  vehicleId     String?
+
   stops         RouteStop[]
   students      Student[]
   feeStructures TransportFeeStructure[]
@@ -44,23 +53,21 @@ model Route {
 }
 
 model RouteStop {
-  id            String   @id @default(uuid())
-  route         Route    @relation(fields: [routeId], references: [id])
-  routeId       String
+  id            String                  @id @default(uuid())
+  routeId       String?
+  route         Route?                  @relation(fields: [routeId], references: [id])
   stopName      String
-  address       String?         // Optional address
+  address       String?
   stopOrder     Int
   stopTime      String
-  latitude      Float?          // ✅ Optional latitude
-  longitude     Float?          // ✅ Optional longitude
+  latitude      Float?
+  longitude     Float?
   feeAmount     Float?
-  students      Student[]       @relation("StopStudents")
+  students      Student[]               @relation("StopStudents")
   feeStructures TransportFeeStructure[]
-  status        String          @default("active")
-  createdAt     DateTime        @default(now())
+  status        String                  @default("active")
+  createdAt     DateTime                @default(now())
 }
-
-
 
 model SchoolClass {
   id        String    @id @default(uuid())
@@ -70,70 +77,84 @@ model SchoolClass {
 }
 
 model ConcessionSetting {
-  id        String   @id @default(uuid())
-  name      String // e.g. "Sibling", "Staff Ward"
-  type      String // "fixed" | "percentage"
+  id        String    @id @default(uuid())
+  name      String
+  type      String    // "fixed" | "percentage"
   value     Float
-  createdAt DateTime @default(now())
-
-  students Student[] @relation("ConcessionToStudent")
+  createdAt DateTime  @default(now())
+  students  Student[] @relation("ConcessionToStudent")
 }
 
 model FineSetting {
-  id        String   @id @default(uuid())
-  amount    Float // e.g. 50 or 10 (per day)
-  duration  String // "fixed" | "per_day"
-  applyFrom Int // e.g. 11 = fine starts after 10th
-  createdAt DateTime @default(now())
+  id        String    @id @default(uuid())
+  amount    Float     // e.g. 50 or 10 (per day)
+  duration  String    // "fixed" | "per_day"
+  applyFrom Int       // e.g. 11 = fine starts after 10th
+  createdAt DateTime  @default(now())
 }
 
 model Student {
-  id              String                 @id @default(uuid())
-  admissionNumber String?                @unique
+  id              String                   @id @default(uuid())
+  admissionNumber String?                  @unique
   name            String
   phone           String
   password        String?
   classId         String?
-  class           SchoolClass?           @relation(fields: [classId], references: [id])
-  route           Route?                 @relation(fields: [routeId], references: [id])
+  class           SchoolClass?             @relation(fields: [classId], references: [id])
   routeId         String?
-  stop            RouteStop?             @relation("StopStudents", fields: [stopId], references: [id])
+  route           Route?                   @relation(fields: [routeId], references: [id])
   stopId          String?
+  stop            RouteStop?               @relation("StopStudents", fields: [stopId], references: [id])
   feeSlab         String
   concessionId    String?
-  concession      ConcessionSetting?     @relation("ConcessionToStudent", fields: [concessionId], references: [id])
-  status          String                 @default("active")
-  createdAt       DateTime               @default(now())
+  concession      ConcessionSetting?       @relation("ConcessionToStudent", fields: [concessionId], references: [id])
+  status          String                   @default("active")
+  createdAt       DateTime                 @default(now())
+
+  addressLine     String?
+  cityOrVillage   String?
+  gender          String?                  // optional
+
   transactions    TransportTransaction[]
+  optOutSlabs     StudentOptOutSlab[]      // ← new back-relation
 }
 
 model TransportFeeStructure {
-  id            String     @id @default(uuid())
+  id            String                   @id @default(uuid())
   routeId       String
   stopId        String?
   slab          String
   amount        Float
-  frequency     String // monthly, quarterly, yearly
+  frequency     String                   // monthly, quarterly, yearly
   effectiveFrom DateTime
   effectiveTo   DateTime?
-  createdAt     DateTime   @default(now())
-  route         Route      @relation(fields: [routeId], references: [id])
-  stop          RouteStop? @relation(fields: [stopId], references: [id])
+  createdAt     DateTime                 @default(now())
+
+  route         Route                    @relation(fields: [routeId], references: [id])
+  stop          RouteStop?               @relation(fields: [stopId], references: [id])
+  transactions  TransportTransaction[]
+  optOutSlabs   StudentOptOutSlab[]      // ← new back-relation
 }
 
 model TransportTransaction {
-  id             String   @id @default(uuid())
-  studentId      String
-  amount         Float
-  dueAmount      Float    @default(0)
-  fine           Float    @default(0)
-  concession     Float    @default(0)
-  fineConcession Float?
-  paymentDate    DateTime @default(now())
-  mode           String // cash, online, cheque
-  status         String // success, failed, pending
-  createdAt      DateTime @default(now())
-  student        Student  @relation(fields: [studentId], references: [id])
+  id              String                   @id @default(uuid())
+  slipId          Int?
+  transactionId   String?                  // optional
+  studentId       String
+  feeStructureId  String
+  slab            String
+  amount          Float
+  dueAmount       Float
+  concession      Float?
+  fine            Float?
+  fineConcession  Float?
+  mode            String
+  status          String
+  paymentDate     DateTime
+  createdAt       DateTime                 @default(now())
+
+  student         Student                  @relation(fields: [studentId], references: [id])
+  feeStructure    TransportFeeStructure    @relation(fields: [feeStructureId], references: [id])
 }
 
 model Payment {
@@ -161,4 +182,16 @@ model TransportOrgProfile {
   email     String
   website   String?
   createdAt DateTime @default(now())
+}
+
+model StudentOptOutSlab {
+  id              String                   @id @default(uuid())
+  studentId       String
+  feeStructureId  String
+  createdAt       DateTime                 @default(now())
+
+  student         Student                  @relation(fields: [studentId], references: [id])
+  feeStructure    TransportFeeStructure    @relation(fields: [feeStructureId], references: [id])
+
+  @@unique([studentId, feeStructureId])
 }

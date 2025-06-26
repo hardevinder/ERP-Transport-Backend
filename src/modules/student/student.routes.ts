@@ -6,10 +6,16 @@ import {
   getStudentById,
   toggleStudentStatus,
   getAllStudents,
-  studentLogin, // ✅ Import login handler
+  studentLogin,
 } from './student.controller';
 
+import {
+  importStudentsFromExcel,
+  downloadSampleExcel,
+} from './import.controller'; // ✅ Excel routes
+
 const studentRoutes: FastifyPluginAsync = async (fastify) => {
+  // 📌 Core CRUD
   fastify.post('/', createStudent);
   fastify.put('/:id', updateStudent);
   fastify.get('/:id', getStudentById);
@@ -17,8 +23,18 @@ const studentRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/:id', deleteStudent);
   fastify.patch('/:id/toggle-status', toggleStudentStatus);
 
-  // ✅ Login route
+  // 🔐 Login
   fastify.post('/login', studentLogin);
+
+  // 📥 Excel Import
+  fastify.post('/import', {
+    schema: {
+      consumes: ['multipart/form-data'],
+    },
+  }, importStudentsFromExcel);
+
+  // 📤 Sample Download
+  fastify.get('/download-sample', downloadSampleExcel);
 };
 
 export default studentRoutes;

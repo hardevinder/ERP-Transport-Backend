@@ -1,7 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcrypt';
 
-// Utility to get current month in YYYY-MM format
+// Utility to get current month if needed
 function getCurrentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -18,6 +18,9 @@ export const createStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     routeId,
     stopId,
     concessionId,
+    addressLine,
+    cityOrVillage,
+    gender, // ✅ added
   } = req.body as {
     name: string;
     phone: string;
@@ -27,6 +30,9 @@ export const createStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     routeId?: string;
     stopId?: string;
     concessionId?: string;
+    addressLine?: string;
+    cityOrVillage?: string;
+    gender?: string;
   };
 
   let feeAmount = 0;
@@ -49,7 +55,10 @@ export const createStudent = async (req: FastifyRequest, reply: FastifyReply) =>
       routeId,
       stopId,
       feeSlab,
-      concessionId, // ✅ assign if provided
+      concessionId,
+      addressLine,
+      cityOrVillage,
+      gender, // ✅ saved
     },
     include: {
       route: true,
@@ -74,6 +83,9 @@ export const updateStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     routeId,
     stopId,
     concessionId,
+    addressLine,
+    cityOrVillage,
+    gender, // ✅ added
   } = req.body as {
     name?: string;
     phone?: string;
@@ -83,6 +95,9 @@ export const updateStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     routeId?: string;
     stopId?: string;
     concessionId?: string;
+    addressLine?: string;
+    cityOrVillage?: string;
+    gender?: string;
   };
 
   const existing = await req.server.prisma.student.findUnique({ where: { id } });
@@ -95,7 +110,10 @@ export const updateStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     classId,
     routeId,
     stopId,
-    concessionId, // ✅ update if provided
+    concessionId,
+    addressLine,
+    cityOrVillage,
+    gender, // ✅ updated
   };
 
   if (password) {
@@ -220,6 +238,9 @@ export const studentLogin = async (req: FastifyRequest, reply: FastifyReply) => 
       class: student.class,
       route: student.route,
       stop: student.stop,
+      addressLine: student.addressLine,
+      cityOrVillage: student.cityOrVillage,
+      gender: student.gender, // ✅ include in login response
       transactions: student.transactions,
     },
   });

@@ -10,7 +10,7 @@ import {
 } from './routeStop.controller';
 
 export default async function routeStopRoutes(server: FastifyInstance) {
-  server.get('/all-with-route-name', { preHandler: [server.authenticate] }, getAllStopsWithRouteName); // ✅ New route
+  server.get('/all', { preHandler: [server.authenticate] }, getAllStopsWithRouteName); // ✅ New route
   server.get('/:routeId', { preHandler: [server.authenticate] }, getStopsByRoute);
   server.post('/', { preHandler: [server.authenticate] }, createStop);
   server.put('/:id', { preHandler: [server.authenticate] }, updateStop);
