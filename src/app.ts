@@ -1,8 +1,14 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import { PrismaClient } from '@prisma/client';
+
+// Plugin
+import prismaPlugin from './plugins/prisma';
 
 // Route Modules
 import authRoutes from './modules/auth/auth.routes';
@@ -19,8 +25,6 @@ import transportOrgRoutes from './modules/transportOrg/transportOrg.routes';
 import classRoutes from './modules/class/class.routes';
 import concessionRoutes from './modules/concessionSetting/concessionSetting.routes';
 import fineSettingRoutes from './modules/fineSetting/fineSetting.routes';
-
-// ← NEW: import your opt‐out routes
 import studentOptOutSlabRoutes from './modules/studentOptOutSlab/studentOptOutSlab.routes';
 
 // Define custom Fastify instance interface
@@ -30,11 +34,10 @@ interface CustomFastifyInstance extends FastifyInstance {
 }
 
 const app = Fastify() as CustomFastifyInstance;
-const prisma = new PrismaClient();
 
 const start = async () => {
   try {
-    // Register Plugins
+    // 🔌 Plugins
     await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
     await app.register(cors, {
       origin: 'http://localhost:3001',
@@ -44,8 +47,10 @@ const start = async () => {
       secret: process.env.JWT_SECRET || 'supersecret123',
     });
 
-    // Decorators
-    app.decorate('prisma', prisma);
+    // 🔌 Register Prisma Plugin (✅ important!)
+    await app.register(prismaPlugin);
+
+    // 🛡️ JWT Decorator
     app.decorate('authenticate', async function (request, reply) {
       try {
         await request.jwtVerify();
@@ -54,7 +59,7 @@ const start = async () => {
       }
     });
 
-    // Register Routes
+    // 📦 Routes
     await app.register(authRoutes, { prefix: '/api/auth' });
     await app.register(vehicleRoutes, { prefix: '/api/vehicles' });
     await app.register(driverRoutes, { prefix: '/api/drivers' });
@@ -69,14 +74,12 @@ const start = async () => {
     await app.register(classRoutes, { prefix: '/api/classes' });
     await app.register(concessionRoutes, { prefix: '/api/concessions' });
     await app.register(fineSettingRoutes, { prefix: '/api/fine-settings' });
-
-    // ← NEW: Opt-out‐slab CRUD
     await app.register(studentOptOutSlabRoutes, { prefix: '/api/opt-out-slabs' });
 
-    // Health Check
+    // ✅ Health Check
     app.get('/', async () => ({ status: '✅ School Transport ERP API is running 🚍' }));
 
-    // Start Server
+    // 🚀 Start Server
     console.log('⚙️ Starting server...');
     await app.listen({ port: 3000, host: '0.0.0.0' });
     console.log('🚀 Server running on http://localhost:3000');

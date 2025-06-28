@@ -90,23 +90,26 @@ export const recordTransaction = async (req: FastifyRequest, reply: FastifyReply
         const finalPayable = dueAmount - concession + finalFine;
 
         const tx = await prisma.transportTransaction.create({
-          data: {
-            slipId: newSlipId,
-            studentId: body.studentId,
-            feeStructureId: slab.feeStructureId,
-            slab: feeStructure.slab,
-            amount: slab.amount,
-            dueAmount,
-            concession,
-            fine: finalFine,
-            fineConcession,
-            mode: body.mode,
-            status: body.status,
-            transactionId: slab.transactionId ?? null,
-            paymentDate: slab.paymentDate ? new Date(slab.paymentDate) : now,
-            createdAt: now,
-          },
-        });
+        data: {
+          slipId: newSlipId,
+          studentId: body.studentId,
+          feeStructureId: slab.feeStructureId,
+          slab: feeStructure.slab,
+          amount: slab.amount,
+          dueAmount,
+          concession,
+          fine: finalFine,
+          fineConcession,
+          mode: body.mode,
+          status: body.status,
+          transactionId: slab.transactionId ?? null,
+          paymentDate: slab.paymentDate ? new Date(slab.paymentDate) : now,
+          createdAt: now,
+          razorpayOrderId: slab.razorpayOrderId ?? null,     // ✅ New
+          razorpayPaymentId: slab.razorpayPaymentId ?? null, // ✅ New
+        },
+      });
+
 
         allTransactions.push({
           ...tx,

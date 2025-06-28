@@ -205,6 +205,10 @@ export const studentLogin = async (req: FastifyRequest, reply: FastifyReply) => 
     password: string;
   };
 
+  if (!admissionNumber || !password) {
+    return reply.code(400).send({ message: 'Admission number and password are required' });
+  }
+
   const student = await req.server.prisma.student.findUnique({
     where: { admissionNumber },
     include: {
@@ -222,25 +226,25 @@ export const studentLogin = async (req: FastifyRequest, reply: FastifyReply) => 
   }
 
   const isValid = await bcrypt.compare(password, student.password);
-
   if (!isValid) {
     return reply.code(401).send({ message: 'Invalid admission number or password' });
   }
 
   const token = req.server.jwt.sign({ studentId: student.id, role: 'student' });
 
-  reply.send({
+  return reply.send({
     token,
     student: {
       id: student.id,
       name: student.name,
       phone: student.phone,
+      admissionNumber: student.admissionNumber,
       class: student.class,
       route: student.route,
       stop: student.stop,
       addressLine: student.addressLine,
       cityOrVillage: student.cityOrVillage,
-      gender: student.gender, // ✅ include in login response
+      gender: student.gender,
       transactions: student.transactions,
     },
   });

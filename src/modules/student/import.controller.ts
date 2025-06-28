@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import * as xlsx from 'xlsx';
+import bcrypt from 'bcrypt';
 
 // 📥 Upload & Import Students from Excel (Class Name Optional, Gender, Route, Stop Name Included)
 export const importStudentsFromExcel = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -104,6 +105,9 @@ export const importStudentsFromExcel = async (req: FastifyRequest, reply: Fastif
           if (addressLine && !existingStudent.addressLine) updateData.addressLine = addressLine;
           if (cityOrVillage && !existingStudent.cityOrVillage) updateData.cityOrVillage = cityOrVillage;
           if (gender && !existingStudent.gender) updateData.gender = gender;
+          if (!existingStudent.password) {
+              updateData.password = await bcrypt.hash('123456', 10);
+            }
 
           if (Object.keys(updateData).length > 0) {
             await req.server.prisma.student.update({
@@ -114,20 +118,23 @@ export const importStudentsFromExcel = async (req: FastifyRequest, reply: Fastif
           }
         } else {
           // Create new student if no existing record
-          await req.server.prisma.student.create({
-            data: {
-              name,
-              phone,
-              admissionNumber,
-              classId,
-              routeId,
-              stopId,
-              addressLine,
-              cityOrVillage,
-              gender: gender || undefined, // Only set gender if valid
-              feeSlab: 'custom',
-            },
-          });
+          const defaultPassword = await bcrypt.hash('123456', 10);
+
+            await req.server.prisma.student.create({
+              data: {
+                name,
+                phone,
+                admissionNumber,
+                password: defaultPassword, // ✅ Add this line
+                classId,
+                routeId,
+                stopId,
+                addressLine,
+                cityOrVillage,
+                gender: gender || undefined,
+                feeSlab: 'custom',
+              },
+            });          
           createdCount++;
         }
       } catch (err: any) {

@@ -1,21 +1,67 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   createRazorpayOrder,
-  verifyRazorpayPayment, // ✅ add import
+  verifyRazorpayPayment,
 } from './payment.controller';
 
+// ✅ Define schema for Razorpay Order Creation
+const createOrderSchema = {
+  body: {
+    type: 'object',
+    required: ['studentId', 'amount', 'slab', 'feeStructureId'],
+    properties: {
+      studentId: { type: 'string', minLength: 1 },
+      amount: { type: 'number', minimum: 0 },
+      slab: { type: 'string', minLength: 1 },
+      feeStructureId: { type: 'string', minLength: 1 },
+    },
+    additionalProperties: false,
+  },
+};
+
+// ✅ Define schema for Razorpay Payment Verification
+const verifyPaymentSchema = {
+  body: {
+    type: 'object',
+    required: [
+      'razorpay_order_id',
+      'razorpay_payment_id',
+      'razorpay_signature',
+      'studentId',
+      'amount',
+      'slab',
+      'feeStructureId',
+    ],
+    properties: {
+      razorpay_order_id: { type: 'string', minLength: 1 },
+      razorpay_payment_id: { type: 'string', minLength: 1 },
+      razorpay_signature: { type: 'string', minLength: 1 },
+      studentId: { type: 'string', minLength: 1 },
+      amount: { type: 'number', minimum: 0 },
+      slab: { type: 'string', minLength: 1 },
+      feeStructureId: { type: 'string', minLength: 1 },
+    },
+    additionalProperties: false,
+  },
+};
+
+// ✅ Register public payment routes (no JWT required)
 const paymentRoutes: FastifyPluginAsync = async (fastify) => {
-  // ✅ Step 1: Create Razorpay Order
+  // 🧾 Razorpay Order Creation Route (for student)
   fastify.post(
     '/create-order',
-    { preHandler: fastify.authenticate },
+    {
+      schema: createOrderSchema,
+    },
     createRazorpayOrder
   );
 
-  // ✅ Step 2: Verify Razorpay Payment
+  // ✅ Razorpay Payment Verification Route (for student)
   fastify.post(
     '/verify-payment',
-    { preHandler: fastify.authenticate },
+    {
+      schema: verifyPaymentSchema,
+    },
     verifyRazorpayPayment
   );
 };

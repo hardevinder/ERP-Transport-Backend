@@ -137,25 +137,29 @@ model TransportFeeStructure {
 }
 
 model TransportTransaction {
-  id              String                   @id @default(uuid())
-  slipId          Int?
-  transactionId   String?                  // optional
-  studentId       String
-  feeStructureId  String
-  slab            String
-  amount          Float
-  dueAmount       Float
-  concession      Float?
-  fine            Float?
-  fineConcession  Float?
-  mode            String
-  status          String
-  paymentDate     DateTime
-  createdAt       DateTime                 @default(now())
+  id                 String                @id @default(uuid())
+  slipId             Int?
+  transactionId      String?
+  studentId          String
+  feeStructureId     String
+  slab               String
+  amount             Float
+  dueAmount          Float
+  concession         Float?
+  fine               Float?
+  fineConcession     Float?
+  mode               String
+  status             String
+  paymentDate        DateTime
+  createdAt          DateTime             @default(now())
 
-  student         Student                  @relation(fields: [studentId], references: [id])
-  feeStructure    TransportFeeStructure    @relation(fields: [feeStructureId], references: [id])
+  razorpayOrderId    String?              // 🔥 Add this
+  razorpayPaymentId  String?              @unique // 🔥 Add this if not already there
+
+  student            Student              @relation(fields: [studentId], references: [id])
+  feeStructure       TransportFeeStructure @relation(fields: [feeStructureId], references: [id])
 }
+
 
 model Payment {
   id                String   @id @default(uuid())
