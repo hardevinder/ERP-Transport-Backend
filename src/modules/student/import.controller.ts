@@ -24,10 +24,11 @@ export const importStudentsFromExcel = async (req: FastifyRequest, reply: Fastif
     let updatedCount = 0;
     const errors: string[] = [];
 
-    // Define valid gender values (case-insensitive)
     const validGenders = ['male', 'female', 'other'];
 
-    for (const row of json) {
+    for (const rowRaw of json) {
+      const row = rowRaw as Record<string, any>; // ✅ TS18046 FIX
+
       try {
         const admissionNumber = String(row['ADM'] || '').trim();
         const name = String(row['Name'] || '').trim();
@@ -45,7 +46,6 @@ export const importStudentsFromExcel = async (req: FastifyRequest, reply: Fastif
           continue;
         }
 
-        // Validate gender
         if (gender && !validGenders.includes(gender)) {
           errors.push(`Skipping row with ADM: ${admissionNumber} - Invalid gender: ${genderRaw}. Expected: ${validGenders.join(', ')}`);
           continue;
@@ -95,7 +95,6 @@ export const importStudentsFromExcel = async (req: FastifyRequest, reply: Fastif
         });
 
         if (existingStudent) {
-          // Prepare update data, only including fields that are provided and currently null/undefined
           const updateData: any = {};
           if (name && !existingStudent.name) updateData.name = name;
           if (phone && !existingStudent.phone) updateData.phone = phone;
@@ -105,9 +104,7 @@ export const importStudentsFromExcel = async (req: FastifyRequest, reply: Fastif
           if (addressLine && !existingStudent.addressLine) updateData.addressLine = addressLine;
           if (cityOrVillage && !existingStudent.cityOrVillage) updateData.cityOrVillage = cityOrVillage;
           if (gender && !existingStudent.gender) updateData.gender = gender;
-          if (!existingStudent.password) {
-              updateData.password = await bcrypt.hash('123456', 10);
-            }
+          if (!existingStudent.password) updateData.password = await bcrypt.hash('123456', 10);
 
           if (Object.keys(updateData).length > 0) {
             await req.server.prisma.student.update({
@@ -117,24 +114,22 @@ export const importStudentsFromExcel = async (req: FastifyRequest, reply: Fastif
             updatedCount++;
           }
         } else {
-          // Create new student if no existing record
           const defaultPassword = await bcrypt.hash('123456', 10);
-
-            await req.server.prisma.student.create({
-              data: {
-                name,
-                phone,
-                admissionNumber,
-                password: defaultPassword, // ✅ Add this line
-                classId,
-                routeId,
-                stopId,
-                addressLine,
-                cityOrVillage,
-                gender: gender || undefined,
-                feeSlab: 'custom',
-              },
-            });          
+          await req.server.prisma.student.create({
+            data: {
+              name,
+              phone,
+              admissionNumber,
+              password: defaultPassword,
+              classId,
+              routeId,
+              stopId,
+              addressLine,
+              cityOrVillage,
+              gender: gender || undefined,
+              feeSlab: 'custom',
+            },
+          });
           createdCount++;
         }
       } catch (err: any) {

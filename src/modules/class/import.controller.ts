@@ -21,7 +21,9 @@ export const importClassesFromExcel = async (req: FastifyRequest, reply: Fastify
     const errors: string[] = [];
 
     for (const row of rows) {
-      const name = String(row['Class'] || '').trim();
+      const typedRow = row as Record<string, any>;
+      const name = String(typedRow['Class'] || '').trim();
+
       if (!name) {
         errors.push('Skipped a row due to missing Class name');
         continue;

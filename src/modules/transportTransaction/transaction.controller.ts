@@ -8,6 +8,8 @@ interface SlabPayment {
   concession?: number;
   fineConcession?: number;
   transactionId?: string;
+  razorpayOrderId?: string;     // ✅ Add this
+  razorpayPaymentId?: string;   // ✅ Add this
 }
 
 interface RecordTransactionBody {
@@ -203,21 +205,26 @@ export const updateTransaction = async (req: FastifyRequest, reply: FastifyReply
     }
 
     let feeStructure = existingTransaction.feeStructure;
-    if (body.feeStructureId) {
-      feeStructure = await req.server.prisma.transportFeeStructure.findUnique({
-        where: { id: body.feeStructureId },
+
+    const feeStructureId = body.slabs?.[0]?.feeStructureId;
+    if (feeStructureId) {
+      const fetched = await req.server.prisma.transportFeeStructure.findUnique({
+        where: { id: feeStructureId },
       });
-      if (!feeStructure) {
+      if (!fetched) {
         return reply.code(404).send({ message: 'Fee structure not found' });
       }
+      feeStructure = fetched;
     }
 
     const updated = await req.server.prisma.transportTransaction.update({
       where: { id },
       data: {
         ...body,
-        slab: body.feeStructureId ? feeStructure.slab : undefined,
-        paymentDate: body.paymentDate ? new Date(body.paymentDate) : undefined,
+        slab: feeStructureId ? feeStructure?.slab : undefined,
+        paymentDate: body.slabs?.[0]?.paymentDate
+          ? new Date(body.slabs[0].paymentDate)
+          : undefined,
         transactionId: body.slabs?.[0]?.transactionId ?? null,
       },
     });
@@ -227,6 +234,7 @@ export const updateTransaction = async (req: FastifyRequest, reply: FastifyReply
     reply.code(500).send({ message: 'Failed to update transaction', error: (error as Error).message });
   }
 };
+
 
 export const deleteTransaction = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };

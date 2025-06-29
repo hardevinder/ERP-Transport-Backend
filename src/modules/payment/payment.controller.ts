@@ -131,7 +131,9 @@ export const verifyRazorpayPayment = async (
 
     let newSlipId = 1;
     if (latestTxn?.slipId) {
-      const last = parseInt(latestTxn.slipId);
+      const last = latestTxn.slipId; // or
+      // const last = parseInt(String(latestTxn.slipId));
+
       if (!isNaN(last)) newSlipId = last + 1;
     }
     const slipId = newSlipId.toString();

@@ -40,9 +40,14 @@ const start = async () => {
     // 🔌 Plugins
     await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
     await app.register(cors, {
-      origin: 'http://localhost:3001',
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    });
+        origin: [
+          'http://localhost:3001', // keep for local dev
+          'https://transport.edubridgeerp.in', // allow your live frontend
+        ],
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      });
+
     await app.register(jwt, {
       secret: process.env.JWT_SECRET || 'supersecret123',
     });

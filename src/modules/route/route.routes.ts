@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import {
   createRoute,
   getRoutes,
-  getRouteById, // ✅ NEW
+  getRouteById, // ✅ Import from controller
   updateRoute,
   deleteRoute,
   toggleRouteStatus,
@@ -18,7 +18,7 @@ export default async function routeRoutes(server: FastifyInstance) {
   // 📥 Get route by ID
   server.get('/:id', {
     preHandler: [server.authenticate],
-  }, getRouteById); // ✅ NEW
+  }, getRouteById);
 
   // ➕ Create a new route
   server.post('/', {

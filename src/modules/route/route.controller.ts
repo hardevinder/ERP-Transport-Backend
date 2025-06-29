@@ -10,9 +10,7 @@ export const createRoute = async (req: FastifyRequest, reply: FastifyReply) => {
   try {
     if (!override) {
       if (vehicleId) {
-        const existingVehicleRoute = await req.server.prisma.route.findFirst({
-          where: { vehicleId },
-        });
+        const existingVehicleRoute = await req.server.prisma.route.findFirst({ where: { vehicleId } });
         if (existingVehicleRoute) {
           return reply.code(409).send({
             warning: true,
@@ -22,9 +20,7 @@ export const createRoute = async (req: FastifyRequest, reply: FastifyReply) => {
       }
 
       if (driverId) {
-        const existingDriverRoute = await req.server.prisma.route.findFirst({
-          where: { driverId },
-        });
+        const existingDriverRoute = await req.server.prisma.route.findFirst({ where: { driverId } });
         if (existingDriverRoute) {
           return reply.code(409).send({
             warning: true,
@@ -42,22 +38,25 @@ export const createRoute = async (req: FastifyRequest, reply: FastifyReply) => {
         driverId,
         vehicleId,
         status: 'active',
-        stops: stops && stops.length > 0 ? {
-          create: stops.map((stop: any) => ({
-            stopName: stop.stopName,
-            stopOrder: Number(stop.stopOrder),
-            stopTime: stop.stopTime,
-            address: stop.address || null,
-            feeAmount: stop.feeAmount !== undefined && stop.feeAmount !== '' ? Number(stop.feeAmount) : null,
-            latitude: stop.latitude !== undefined && stop.latitude !== '' ? Number(stop.latitude) : null,
-            longitude: stop.longitude !== undefined && stop.longitude !== '' ? Number(stop.longitude) : null,
-            status: 'active',
-          })),
-        } : undefined,
+        stops: stops && stops.length > 0
+          ? {
+              create: stops.map((stop: any) => ({
+                stopName: stop.stopName,
+                stopOrder: Number(stop.stopOrder),
+                stopTime: stop.stopTime,
+                address: stop.address || null,
+                feeAmount: stop.feeAmount !== undefined && stop.feeAmount !== '' ? Number(stop.feeAmount) : null,
+                latitude: stop.latitude !== undefined && stop.latitude !== '' ? Number(stop.latitude) : null,
+                longitude: stop.longitude !== undefined && stop.longitude !== '' ? Number(stop.longitude) : null,
+                status: 'active',
+              })),
+            }
+          : undefined,
       },
       include: {
         stops: true,
         vehicle: true,
+        driver: true,
       },
     });
 
@@ -76,6 +75,30 @@ export const getRoutes = async (req: FastifyRequest, reply: FastifyReply) => {
     },
   });
   reply.send(routes);
+};
+
+export const getRouteById = async (req: FastifyRequest, res: FastifyReply) => {
+  const { id } = req.params as { id: string };
+
+  try {
+    const route = await req.server.prisma.route.findUnique({
+      where: { id },
+      include: {
+        driver: true,
+        vehicle: true,
+        stops: { orderBy: { stopOrder: 'asc' } },
+      },
+    });
+
+    if (!route) {
+      return res.code(404).send({ message: 'Route not found' });
+    }
+
+    return res.send(route);
+  } catch (error: any) {
+    console.error('❌ Error fetching route:', error);
+    return res.code(500).send({ message: 'Internal Server Error', error: error.message });
+  }
 };
 
 export const updateRoute = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -119,7 +142,7 @@ export const updateRoute = async (req: FastifyRequest, reply: FastifyReply) => {
       }
     }
 
-    const updated = await req.server.prisma.route.update({
+    await req.server.prisma.route.update({
       where: { id },
       data: {
         name,
@@ -190,7 +213,7 @@ export const addRouteStopsBulk = async (req: FastifyRequest, reply: FastifyReply
     const created = await req.server.prisma.routeStop.createMany({
       data: stops.map((stop: any) => ({
         stopName: stop.stopName,
-        stopOrder: stop.stopOrder,
+        stopOrder: Number(stop.stopOrder),
         stopTime: stop.stopTime,
         address: stop.address || null,
         feeAmount: stop.feeAmount !== undefined && stop.feeAmount !== '' ? Number(stop.feeAmount) : null,
@@ -203,33 +226,7 @@ export const addRouteStopsBulk = async (req: FastifyRequest, reply: FastifyReply
 
     reply.code(201).send({ message: 'Stops added', count: created.count });
   } catch (error: any) {
-    console.error(error);
+    console.error('❌ Error adding stops in bulk:', error);
     reply.code(500).send({ message: 'Error adding stops', error: error.message });
-  }
-};
-
-export const getRouteById = async (req: FastifyRequest<{ Params: { id: string } }>, res: FastifyReply) => {
-  try {
-    const { id } = req.params;
-
-    const route = await req.server.prisma.route.findUnique({
-      where: { id },
-      include: {
-        driver: true,
-        vehicle: true,
-        stops: {
-          orderBy: { stopOrder: 'asc' },
-        },
-      },
-    });
-
-    if (!route) {
-      return res.code(404).send({ message: 'Route not found' });
-    }
-
-    return res.send(route);
-  } catch (error: any) {
-    console.error('❌ Error fetching route:', error);
-    return res.code(500).send({ message: 'Internal Server Error', error: error.message });
   }
 };

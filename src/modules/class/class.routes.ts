@@ -27,11 +27,7 @@ const classRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/sample', downloadSampleClassExcel);
 
   // 📥 Import Classes via Excel
-  fastify.post('/import', {
-    schema: {
-      consumes: ['multipart/form-data'],
-    },
-  }, importClassesFromExcel);
+  fastify.post('/import', importClassesFromExcel); // ❌ Removed consumes to fix TS error
 };
 
 export default classRoutes;

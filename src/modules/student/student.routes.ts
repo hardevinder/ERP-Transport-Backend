@@ -26,12 +26,8 @@ const studentRoutes: FastifyPluginAsync = async (fastify) => {
   // 🔐 Login
   fastify.post('/login', studentLogin);
 
-  // 📥 Excel Import
-  fastify.post('/import', {
-    schema: {
-      consumes: ['multipart/form-data'],
-    },
-  }, importStudentsFromExcel);
+  // 📥 Excel Import (Removed invalid `consumes` key)
+  fastify.post('/import', importStudentsFromExcel);
 
   // 📤 Sample Download
   fastify.get('/download-sample', downloadSampleExcel);
