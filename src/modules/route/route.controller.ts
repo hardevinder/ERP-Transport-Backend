@@ -10,21 +10,25 @@ export const createRoute = async (req: FastifyRequest, reply: FastifyReply) => {
   try {
     if (!override) {
       if (vehicleId) {
-        const existingVehicleRoute = await req.server.prisma.route.findFirst({ where: { vehicleId } });
+        const existingVehicleRoute = await req.server.prisma.route.findFirst({
+          where: { vehicleId },
+        });
         if (existingVehicleRoute) {
           return reply.code(409).send({
             warning: true,
-            message: `Vehicle already assigned to Route: ${existingVehicleRoute.name}`,
+            message: `Vehicle already assigned to Route: ${existingVehicleRoute.name}. Proceed with override?`,
           });
         }
       }
 
       if (driverId) {
-        const existingDriverRoute = await req.server.prisma.route.findFirst({ where: { driverId } });
+        const existingDriverRoute = await req.server.prisma.route.findFirst({
+          where: { driverId },
+        });
         if (existingDriverRoute) {
           return reply.code(409).send({
             warning: true,
-            message: `Driver already assigned to Route: ${existingDriverRoute.name}`,
+            message: `Driver already assigned to Route: ${existingDriverRoute.name}. Proceed with override?`,
           });
         }
       }
@@ -114,14 +118,16 @@ export const updateRoute = async (req: FastifyRequest, reply: FastifyReply) => {
       if (vehicleId) {
         const existingVehicleRoute = await req.server.prisma.route.findFirst({
           where: {
-            vehicleId,
-            id: { not: id },
+            AND: [
+              { vehicleId },
+              { id: { not: id } },
+            ],
           },
         });
         if (existingVehicleRoute) {
           return reply.code(409).send({
             warning: true,
-            message: `Vehicle already assigned to Route: ${existingVehicleRoute.name}`,
+            message: `Vehicle already assigned to Route: ${existingVehicleRoute.name}. Proceed with override?`,
           });
         }
       }
@@ -129,19 +135,22 @@ export const updateRoute = async (req: FastifyRequest, reply: FastifyReply) => {
       if (driverId) {
         const existingDriverRoute = await req.server.prisma.route.findFirst({
           where: {
-            driverId,
-            id: { not: id },
+            AND: [
+              { driverId },
+              { id: { not: id } },
+            ],
           },
         });
         if (existingDriverRoute) {
           return reply.code(409).send({
             warning: true,
-            message: `Driver already assigned to Route: ${existingDriverRoute.name}`,
+            message: `Driver already assigned to Route: ${existingDriverRoute.name}. Proceed with override?`,
           });
         }
       }
     }
 
+    // Update route basic info
     await req.server.prisma.route.update({
       where: { id },
       data: {
@@ -153,8 +162,10 @@ export const updateRoute = async (req: FastifyRequest, reply: FastifyReply) => {
       },
     });
 
+    // Remove old stops
     await req.server.prisma.routeStop.deleteMany({ where: { routeId: id } });
 
+    // Add new stops
     if (stops && stops.length > 0) {
       await req.server.prisma.routeStop.createMany({
         data: stops.map((stop: any) => ({
@@ -177,6 +188,7 @@ export const updateRoute = async (req: FastifyRequest, reply: FastifyReply) => {
     reply.code(500).send({ message: 'Error updating route', error: err.message });
   }
 };
+
 
 export const deleteRoute = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };
