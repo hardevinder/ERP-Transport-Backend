@@ -42,9 +42,10 @@ const start = async () => {
     await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
     await app.register(cors, {
         origin: [
-           'http://localhost:3000',
+          'https://lstravel.edubridgeerp.in',  // ✅ your live frontend
+          'http://localhost:3000',
           'http://localhost:3001', // keep for local dev
-          'https://transport.edubridgeerp.in', // allow your live frontend
+          // 'https://transport.edubridgeerp.in', // allow your live frontend
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
