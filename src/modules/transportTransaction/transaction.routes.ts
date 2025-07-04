@@ -7,17 +7,25 @@ import {
   deleteTransaction,
   getFeeDue,
   getFeeDueDetails,
+  getCollectionSummaryCards,
 } from './transaction.controller';
 
 const transactionRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get('/fee-due/:studentId', getFeeDue);           // ✅ Calculate Fee Due
-  fastify.get('/fee-due-details/:studentId', getFeeDueDetails); // ✅ Get Fee Due Details
-  fastify.post('/', recordTransaction);                    // ✅ Create transaction
-  fastify.get('/', getTransactions);                       // ✅ Get all transactions (with filters)
-  fastify.get('/:id', getTransactionById);                 // ✅ Get transaction by ID
-  fastify.put('/:id', updateTransaction);                  // ✅ Update a transaction
-  fastify.delete('/:id', deleteTransaction);               // ✅ Delete a transaction
- 
+  // ✅ Special route FIRST
+  fastify.get('/collection-summary-cards', getCollectionSummaryCards);
+
+  // ✅ Fee calculation routes
+  fastify.get('/fee-due/:studentId', getFeeDue);
+  fastify.get('/fee-due-details/:studentId', getFeeDueDetails);
+
+  // ✅ Core CRUD routes
+  fastify.post('/', recordTransaction);
+  fastify.get('/', getTransactions);
+
+  // ⚠️ Keep dynamic ID route at the end!
+  fastify.get('/:id', getTransactionById);
+  fastify.put('/:id', updateTransaction);
+  fastify.delete('/:id', deleteTransaction);
 };
 
 export default transactionRoutes;

@@ -71,3 +71,23 @@ export const toggleDriverStatus = async (req: FastifyRequest, reply: FastifyRepl
 
   reply.send(updated);
 };
+
+
+export const countDrivers = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const totalDrivers = await req.server.prisma.driver.count();
+
+    reply.send({
+      status: 200,
+      message: 'Total number of drivers',
+      data: { totalDrivers },
+    });
+  } catch (error: any) {
+    console.error('❌ Error counting drivers:', error);
+    reply.code(500).send({
+      status: 500,
+      message: 'Error counting drivers',
+      error: error.message,
+    });
+  }
+};

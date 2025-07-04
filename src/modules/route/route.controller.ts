@@ -242,3 +242,24 @@ export const addRouteStopsBulk = async (req: FastifyRequest, reply: FastifyReply
     reply.code(500).send({ message: 'Error adding stops', error: error.message });
   }
 };
+
+
+export const countRoutes = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const totalRoutes = await req.server.prisma.route.count();
+
+    reply.send({
+      status: 200,
+      message: 'Total number of routes',
+      data: { totalRoutes },
+    });
+  } catch (error: any) {
+    console.error('❌ Error counting routes:', error);
+    reply.code(500).send({
+      status: 500,
+      message: 'Error counting routes',
+      error: error.message,
+    });
+  }
+};
+

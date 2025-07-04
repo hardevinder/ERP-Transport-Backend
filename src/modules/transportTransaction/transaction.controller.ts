@@ -145,11 +145,25 @@ export const recordTransaction = async (req: FastifyRequest, reply: FastifyReply
 };
 
 export const getTransactions = async (req: FastifyRequest, reply: FastifyReply) => {
-  const query = req.query as { studentId?: string; limit?: string; offset?: string; status?: string };
+  const query = req.query as {
+    studentId?: string;
+    slipId?: string;
+    limit?: string;
+    offset?: string;
+    status?: string;
+  };
 
-  const whereClause: any = {};
-  if (query.studentId) whereClause.studentId = query.studentId;
-  if (query.status) whereClause.status = query.status;
+  console.log("REQ QUERY:", query);
+
+  const slipId = query.slipId ? parseInt(query.slipId, 10) : undefined;
+
+  const whereClause: any = {
+    ...(query.studentId && { studentId: query.studentId }),
+    ...(slipId && { slipId }),
+    ...(query.status && { status: query.status }),
+  };
+
+  console.log("WHERE CLAUSE:", whereClause);
 
   const take = query.limit ? Number(query.limit) : 50;
   const skip = query.offset ? Number(query.offset) : 0;
@@ -171,9 +185,15 @@ export const getTransactions = async (req: FastifyRequest, reply: FastifyReply) 
 
     reply.send({ transactions, totalCount });
   } catch (error) {
-    reply.code(500).send({ message: 'Failed to fetch transactions', error: (error as Error).message });
+    console.error("TRANSACTION FETCH ERROR:", error);
+    reply.code(500).send({
+      message: 'Failed to fetch transactions',
+      error: (error as Error).message,
+    });
   }
 };
+
+
 
 export const getTransactionById = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };
@@ -441,3 +461,116 @@ function getDueDate(slab: string, frequency: string, fineSetting: any): Date | n
     ? new Date(dueMonthYear, m, fineSetting.applyFrom)
     : null;
 }
+
+
+export const getCollectionSummaryCards = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const { startDate, endDate } = req.query as {
+      startDate?: string;
+      endDate?: string;
+    };
+
+    const filters: any = {
+      status: 'success',
+    };
+
+    if (startDate || endDate) {
+      filters.paymentDate = {};
+      if (startDate) filters.paymentDate.gte = new Date(startDate);
+      if (endDate) filters.paymentDate.lte = new Date(endDate);
+    }
+
+    // 1️⃣ Group by feeStructureId, slab, and mode
+    const grouped = await req.server.prisma.transportTransaction.groupBy({
+      by: ['feeStructureId', 'slab', 'mode'],
+      where: filters,
+      _sum: {
+        amount: true,
+      },
+    });
+
+    if (!grouped || grouped.length === 0) {
+      return reply.send({
+        status: 200,
+        message: 'No transactions found in the given range',
+        data: [],
+      });
+    }
+
+    // 2️⃣ Get FeeStructures with route info
+    const feeStructureIds = [...new Set(grouped.map(g => g.feeStructureId))];
+    const feeStructures = await req.server.prisma.transportFeeStructure.findMany({
+      where: { id: { in: feeStructureIds } },
+      include: { route: true },
+    });
+
+    // 3️⃣ Create a map for fast lookup
+    const feeStructureMap = new Map<string, typeof feeStructures[0]>();
+    feeStructures.forEach(fs => {
+      feeStructureMap.set(fs.id, fs);
+    });
+
+    // 4️⃣ Prepare route-wise summary
+    const resultMap = new Map<string, {
+      routeId: string;
+      routeName: string;
+      slabs: {
+        slab: string;
+        totalAmount: number;
+        modes: { mode: string; amount: number }[];
+      }[];
+    }>();
+
+    for (const entry of grouped) {
+      const structure = feeStructureMap.get(entry.feeStructureId);
+      if (!structure || !structure.route) continue;
+
+      const { slab, mode } = entry;
+      const totalAmount = entry._sum.amount || 0;
+      const routeId = structure.route.id;
+      const routeName = structure.route.name;
+
+      if (!resultMap.has(routeId)) {
+        resultMap.set(routeId, {
+          routeId,
+          routeName,
+          slabs: [],
+        });
+      }
+
+      const routeEntry = resultMap.get(routeId)!;
+      let slabEntry = routeEntry.slabs.find(s => s.slab === slab);
+
+      if (!slabEntry) {
+        slabEntry = { slab, totalAmount: 0, modes: [] };
+        routeEntry.slabs.push(slabEntry);
+      }
+
+      // Update slab total and mode
+      slabEntry.totalAmount += totalAmount;
+      const existingMode = slabEntry.modes.find(m => m.mode === mode);
+      if (existingMode) {
+        existingMode.amount += totalAmount;
+      } else {
+        slabEntry.modes.push({ mode, amount: totalAmount });
+      }
+    }
+
+    const summary = Array.from(resultMap.values());
+
+    return reply.send({
+      status: 200,
+      message: 'Collection summary cards',
+      data: summary,
+    });
+
+  } catch (err: any) {
+    console.error("COLLECTION SUMMARY ERROR:", err);
+    return reply.code(500).send({
+      message: 'Failed to fetch summary',
+      error: err.message,
+    });
+  }
+};
+
+

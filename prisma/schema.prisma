@@ -114,6 +114,7 @@ model Student {
   addressLine     String?
   cityOrVillage   String?
   gender          String?                  // optional
+  profilePicture  String?  
 
   transactions    TransportTransaction[]
   optOutSlabs     StudentOptOutSlab[]      // ← new back-relation

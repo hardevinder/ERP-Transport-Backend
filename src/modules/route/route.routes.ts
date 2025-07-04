@@ -2,11 +2,12 @@ import { FastifyInstance } from 'fastify';
 import {
   createRoute,
   getRoutes,
-  getRouteById, // ✅ Import from controller
+  getRouteById,
   updateRoute,
   deleteRoute,
   toggleRouteStatus,
   addRouteStopsBulk,
+  countRoutes, // ✅ Import the new function
 } from './route.controller';
 
 export default async function routeRoutes(server: FastifyInstance) {
@@ -14,6 +15,11 @@ export default async function routeRoutes(server: FastifyInstance) {
   server.get('/', {
     preHandler: [server.authenticate],
   }, getRoutes);
+
+  // 🔢 Get total route count
+  server.get('/count', {
+    preHandler: [server.authenticate],
+  }, countRoutes); // ✅ New route added
 
   // 📥 Get route by ID
   server.get('/:id', {

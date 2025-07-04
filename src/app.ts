@@ -6,9 +6,10 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import { PrismaClient } from '@prisma/client';
-
-// Plugin
 import prismaPlugin from './plugins/prisma';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+
 
 // Route Modules
 import authRoutes from './modules/auth/auth.routes';
@@ -41,6 +42,7 @@ const start = async () => {
     await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
     await app.register(cors, {
         origin: [
+           'http://localhost:3000',
           'http://localhost:3001', // keep for local dev
           'https://transport.edubridgeerp.in', // allow your live frontend
         ],
@@ -62,6 +64,12 @@ const start = async () => {
       } catch {
         reply.code(401).send({ message: 'Unauthorized' });
       }
+    });
+
+    // 📂 Serve static files from /public
+    await app.register(fastifyStatic, {
+      root: path.join(__dirname, '../public'), // adjust if needed
+      prefix: '/public/', // Access via /public/uploads/profile/filename.jpg
     });
 
     // 📦 Routes
@@ -86,8 +94,10 @@ const start = async () => {
 
     // 🚀 Start Server
     console.log('⚙️ Starting server...');
-    await app.listen({ port: 3000, host: '0.0.0.0' });
-    console.log('🚀 Server running on http://localhost:3000');
+    const PORT = parseInt(process.env.PORT || '3000', 10);
+    await app.listen({ port: PORT, host: '0.0.0.0' });
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+
   } catch (err) {
     console.error('❌ Server failed to start:', err);
     process.exit(1);

@@ -6,9 +6,12 @@ import { PrismaClient } from '@prisma/client';
 // Interfaces
 interface CreateOrderBody {
   studentId: string;
-  amount: number;        // Final amount in paise
-  slab: string;
-  feeStructureId: string;
+  amount: number; // Final amount in paise
+  slabs: {
+    slab: string;
+    amount: number;
+    feeStructureId: string;
+  }[];
 }
 
 interface VerifyPaymentBody {
@@ -16,15 +19,18 @@ interface VerifyPaymentBody {
   razorpay_payment_id: string;
   razorpay_signature: string;
   studentId: string;
-  amount: number;        // Final amount in ₹
-  slab: string;
-  feeStructureId: string;
+  amount: number; // Final amount in ₹
+  slabs: {
+    slab: string;
+    amount: number;
+    feeStructureId: string;
+  }[];
 }
 
 interface SlabPayment {
   feeStructureId: string;
-  amount: number;            // Final paid ₹
-  dueAmount: number;         // Original due ₹
+  amount: number; // Final paid ₹
+  dueAmount: number; // Original due ₹
   paymentDate?: string;
   concession?: number;
   fineConcession?: number;
@@ -53,18 +59,22 @@ export const createRazorpayOrder = async (
   req: FastifyRequest<{ Body: CreateOrderBody }>,
   reply: FastifyReply
 ) => {
-  const { studentId, amount, slab, feeStructureId } = req.body;
+  const { studentId, amount, slabs } = req.body;
 
-  if (!studentId || !amount || !slab || !feeStructureId) {
+  if (!studentId || !amount || !Array.isArray(slabs) || slabs.length === 0) {
     return reply.code(400).send({ message: 'Missing required fields' });
   }
 
   try {
+    const description = slabs.map(s => s.slab).join(', ');
     const order = await razorpay.orders.create({
-      amount: Math.round(amount), // already in paise
+      amount: Math.round(amount),
       currency: 'INR',
       receipt: `rcpt_${studentId.slice(0, 6)}_${Date.now()}`,
-      notes: { studentId, slab, feeStructureId },
+      notes: {
+        studentId,
+        slabs: JSON.stringify(slabs),
+      },
     });
 
     return reply.send({
@@ -90,8 +100,7 @@ export const verifyRazorpayPayment = async (
     razorpay_signature,
     studentId,
     amount,
-    slab,
-    feeStructureId,
+    slabs,
   } = req.body;
 
   if (
@@ -100,8 +109,8 @@ export const verifyRazorpayPayment = async (
     !razorpay_signature ||
     !studentId ||
     !amount ||
-    !slab ||
-    !feeStructureId
+    !Array.isArray(slabs) ||
+    slabs.length === 0
   ) {
     return reply.code(400).send({ message: 'Missing required fields' });
   }
@@ -112,7 +121,7 @@ export const verifyRazorpayPayment = async (
     .update(body)
     .digest('hex');
 
-  console.log("🔐 Verifying Razorpay Signature:", {
+  console.log('🔐 Verifying Razorpay Signature:', {
     received: razorpay_signature,
     expected: expectedSignature,
     match: expectedSignature === razorpay_signature,
@@ -123,37 +132,30 @@ export const verifyRazorpayPayment = async (
   }
 
   try {
-    // Get latest slipId
     const latestTxn = await req.server.prisma.transportTransaction.findFirst({
       orderBy: { slipId: 'desc' },
       select: { slipId: true },
     });
 
     let newSlipId = 1;
-    if (latestTxn?.slipId) {
-      const last = latestTxn.slipId; // or
-      // const last = parseInt(String(latestTxn.slipId));
-
-      if (!isNaN(last)) newSlipId = last + 1;
+    if (latestTxn?.slipId && !isNaN(latestTxn.slipId)) {
+      newSlipId = latestTxn.slipId + 1;
     }
-    const slipId = newSlipId.toString();
+
+    const slabPayments: SlabPayment[] = slabs.map(s => ({
+      ...s,
+      dueAmount: s.amount,
+      transactionId: razorpay_payment_id,
+      razorpayOrderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+      slipId: newSlipId.toString(),
+    }));
 
     await recordTransaction(req.server.prisma, {
       studentId,
       mode: 'online',
       status: 'success',
-      slabs: [
-        {
-          feeStructureId,
-          amount,
-          dueAmount: amount,
-          slab,
-          razorpayOrderId: razorpay_order_id,
-          razorpayPaymentId: razorpay_payment_id,
-          transactionId: razorpay_payment_id,
-          slipId,
-        },
-      ],
+      slabs: slabPayments,
     });
 
     return reply.send({ message: '✅ Payment verified and recorded' });
@@ -163,7 +165,7 @@ export const verifyRazorpayPayment = async (
   }
 };
 
-// ✅ Transaction Save Logic
+// 💾 Save Transactions for all slabs
 export const recordTransaction = async (
   prisma: PrismaClient,
   { studentId, mode, status, slabs }: RecordTransactionBody
@@ -173,13 +175,6 @@ export const recordTransaction = async (
   }
 
   for (const slab of slabs) {
-    // 🔥 Auto-generate next slip ID
-    const maxSlip = await prisma.transportTransaction.aggregate({
-      _max: { slipId: true },
-    });
-
-    const newSlipId = (maxSlip._max.slipId || 0) + 1;
-
     await prisma.transportTransaction.create({
       data: {
         studentId,
@@ -195,7 +190,7 @@ export const recordTransaction = async (
         transactionId: slab.transactionId || undefined,
         razorpayOrderId: slab.razorpayOrderId || undefined,
         razorpayPaymentId: slab.razorpayPaymentId || undefined,
-        slipId: newSlipId, // ✅ Correctly set slipId as number
+        slipId: parseInt(slab.slipId || '0'),
         createdAt: new Date(),
       },
     });
