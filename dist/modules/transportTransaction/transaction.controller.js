@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFeeDueDetails = exports.getFeeDue = exports.deleteTransaction = exports.updateTransaction = exports.getTransactionById = exports.getTransactions = exports.recordTransaction = void 0;
+exports.getCollectionSummaryCards = exports.getFeeDueDetails = exports.getFeeDue = exports.deleteTransaction = exports.updateTransaction = exports.getTransactionById = exports.getTransactions = exports.recordTransaction = void 0;
 const recordTransaction = async (req, reply) => {
     const body = req.body;
     if (!body.studentId || !body.mode || !body.status || !Array.isArray(body.slabs) || body.slabs.length === 0) {
@@ -386,3 +386,91 @@ function getDueDate(slab, frequency, fineSetting) {
         ? new Date(dueMonthYear, m, fineSetting.applyFrom)
         : null;
 }
+const getCollectionSummaryCards = async (req, reply) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const filters = {
+            status: 'success',
+        };
+        if (startDate || endDate) {
+            filters.paymentDate = {};
+            if (startDate)
+                filters.paymentDate.gte = new Date(startDate);
+            if (endDate)
+                filters.paymentDate.lte = new Date(endDate);
+        }
+        // 1️⃣ Group by feeStructureId, slab, and mode
+        const grouped = await req.server.prisma.transportTransaction.groupBy({
+            by: ['feeStructureId', 'slab', 'mode'],
+            where: filters,
+            _sum: {
+                amount: true,
+            },
+        });
+        if (!grouped || grouped.length === 0) {
+            return reply.send({
+                status: 200,
+                message: 'No transactions found in the given range',
+                data: [],
+            });
+        }
+        // 2️⃣ Get FeeStructures with route info
+        const feeStructureIds = [...new Set(grouped.map(g => g.feeStructureId))];
+        const feeStructures = await req.server.prisma.transportFeeStructure.findMany({
+            where: { id: { in: feeStructureIds } },
+            include: { route: true },
+        });
+        // 3️⃣ Create a map for fast lookup
+        const feeStructureMap = new Map();
+        feeStructures.forEach(fs => {
+            feeStructureMap.set(fs.id, fs);
+        });
+        // 4️⃣ Prepare route-wise summary
+        const resultMap = new Map();
+        for (const entry of grouped) {
+            const structure = feeStructureMap.get(entry.feeStructureId);
+            if (!structure || !structure.route)
+                continue;
+            const { slab, mode } = entry;
+            const totalAmount = entry._sum.amount || 0;
+            const routeId = structure.route.id;
+            const routeName = structure.route.name;
+            if (!resultMap.has(routeId)) {
+                resultMap.set(routeId, {
+                    routeId,
+                    routeName,
+                    slabs: [],
+                });
+            }
+            const routeEntry = resultMap.get(routeId);
+            let slabEntry = routeEntry.slabs.find(s => s.slab === slab);
+            if (!slabEntry) {
+                slabEntry = { slab, totalAmount: 0, modes: [] };
+                routeEntry.slabs.push(slabEntry);
+            }
+            // Update slab total and mode
+            slabEntry.totalAmount += totalAmount;
+            const existingMode = slabEntry.modes.find(m => m.mode === mode);
+            if (existingMode) {
+                existingMode.amount += totalAmount;
+            }
+            else {
+                slabEntry.modes.push({ mode, amount: totalAmount });
+            }
+        }
+        const summary = Array.from(resultMap.values());
+        return reply.send({
+            status: 200,
+            message: 'Collection summary cards',
+            data: summary,
+        });
+    }
+    catch (err) {
+        console.error("COLLECTION SUMMARY ERROR:", err);
+        return reply.code(500).send({
+            message: 'Failed to fetch summary',
+            error: err.message,
+        });
+    }
+};
+exports.getCollectionSummaryCards = getCollectionSummaryCards;

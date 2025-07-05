@@ -4,7 +4,12 @@ import bcrypt from 'bcrypt';
 
 // 📥 Upload & Import Students from Excel (Class Name Optional, Gender, Route, Stop Name Included)
 export const importStudentsFromExcel = async (req: FastifyRequest, reply: FastifyReply) => {
+  // console.log('📥 Request Headers:', req.headers); // ✅ ADD THIS
+     
   const data = await req.file();
+
+  
+  // console.log('🔍 Incoming file details:', data?.filename, data?.mimetype);
 
   if (!data) {
     return reply.code(400).send({ message: 'No file uploaded' });

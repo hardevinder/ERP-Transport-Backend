@@ -41,7 +41,9 @@ const xlsx = __importStar(require("xlsx"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
 // 📥 Upload & Import Students from Excel (Class Name Optional, Gender, Route, Stop Name Included)
 const importStudentsFromExcel = async (req, reply) => {
+    // console.log('📥 Request Headers:', req.headers); // ✅ ADD THIS
     const data = await req.file();
+    // console.log('🔍 Incoming file details:', data?.filename, data?.mimetype);
     if (!data) {
         return reply.code(400).send({ message: 'No file uploaded' });
     }

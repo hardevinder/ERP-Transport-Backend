@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toggleDriverStatus = exports.deleteDriver = exports.updateDriver = exports.getDrivers = exports.createDriver = void 0;
+exports.countDrivers = exports.toggleDriverStatus = exports.deleteDriver = exports.updateDriver = exports.getDrivers = exports.createDriver = void 0;
 const createDriver = async (req, reply) => {
     const { name, phone, licenseNo } = req.body;
     const existing = await req.server.prisma.driver.findUnique({ where: { phone } });
@@ -58,3 +58,22 @@ const toggleDriverStatus = async (req, reply) => {
     reply.send(updated);
 };
 exports.toggleDriverStatus = toggleDriverStatus;
+const countDrivers = async (req, reply) => {
+    try {
+        const totalDrivers = await req.server.prisma.driver.count();
+        reply.send({
+            status: 200,
+            message: 'Total number of drivers',
+            data: { totalDrivers },
+        });
+    }
+    catch (error) {
+        console.error('❌ Error counting drivers:', error);
+        reply.code(500).send({
+            status: 500,
+            message: 'Error counting drivers',
+            error: error.message,
+        });
+    }
+};
+exports.countDrivers = countDrivers;

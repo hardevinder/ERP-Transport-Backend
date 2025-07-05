@@ -13,16 +13,20 @@ const razorpay = new razorpay_1.default({
 });
 // 📦 Create Razorpay Order
 const createRazorpayOrder = async (req, reply) => {
-    const { studentId, amount, slab, feeStructureId } = req.body;
-    if (!studentId || !amount || !slab || !feeStructureId) {
+    const { studentId, amount, slabs } = req.body;
+    if (!studentId || !amount || !Array.isArray(slabs) || slabs.length === 0) {
         return reply.code(400).send({ message: 'Missing required fields' });
     }
     try {
+        const description = slabs.map(s => s.slab).join(', ');
         const order = await razorpay.orders.create({
-            amount: Math.round(amount), // already in paise
+            amount: Math.round(amount),
             currency: 'INR',
             receipt: `rcpt_${studentId.slice(0, 6)}_${Date.now()}`,
-            notes: { studentId, slab, feeStructureId },
+            notes: {
+                studentId,
+                slabs: JSON.stringify(slabs),
+            },
         });
         return reply.send({
             id: order.id,
@@ -39,14 +43,14 @@ const createRazorpayOrder = async (req, reply) => {
 exports.createRazorpayOrder = createRazorpayOrder;
 // ✅ VERIFY Razorpay Payment & Save
 const verifyRazorpayPayment = async (req, reply) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, studentId, amount, slab, feeStructureId, } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, studentId, amount, slabs, } = req.body;
     if (!razorpay_order_id ||
         !razorpay_payment_id ||
         !razorpay_signature ||
         !studentId ||
         !amount ||
-        !slab ||
-        !feeStructureId) {
+        !Array.isArray(slabs) ||
+        slabs.length === 0) {
         return reply.code(400).send({ message: 'Missing required fields' });
     }
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
@@ -54,7 +58,7 @@ const verifyRazorpayPayment = async (req, reply) => {
         .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
         .update(body)
         .digest('hex');
-    console.log("🔐 Verifying Razorpay Signature:", {
+    console.log('🔐 Verifying Razorpay Signature:', {
         received: razorpay_signature,
         expected: expectedSignature,
         match: expectedSignature === razorpay_signature,
@@ -63,35 +67,27 @@ const verifyRazorpayPayment = async (req, reply) => {
         return reply.code(400).send({ message: 'Signature verification failed' });
     }
     try {
-        // Get latest slipId
         const latestTxn = await req.server.prisma.transportTransaction.findFirst({
             orderBy: { slipId: 'desc' },
             select: { slipId: true },
         });
         let newSlipId = 1;
-        if (latestTxn?.slipId) {
-            const last = latestTxn.slipId; // or
-            // const last = parseInt(String(latestTxn.slipId));
-            if (!isNaN(last))
-                newSlipId = last + 1;
+        if (latestTxn?.slipId && !isNaN(latestTxn.slipId)) {
+            newSlipId = latestTxn.slipId + 1;
         }
-        const slipId = newSlipId.toString();
+        const slabPayments = slabs.map(s => ({
+            ...s,
+            dueAmount: s.amount,
+            transactionId: razorpay_payment_id,
+            razorpayOrderId: razorpay_order_id,
+            razorpayPaymentId: razorpay_payment_id,
+            slipId: newSlipId.toString(),
+        }));
         await (0, exports.recordTransaction)(req.server.prisma, {
             studentId,
             mode: 'online',
             status: 'success',
-            slabs: [
-                {
-                    feeStructureId,
-                    amount,
-                    dueAmount: amount,
-                    slab,
-                    razorpayOrderId: razorpay_order_id,
-                    razorpayPaymentId: razorpay_payment_id,
-                    transactionId: razorpay_payment_id,
-                    slipId,
-                },
-            ],
+            slabs: slabPayments,
         });
         return reply.send({ message: '✅ Payment verified and recorded' });
     }
@@ -101,17 +97,12 @@ const verifyRazorpayPayment = async (req, reply) => {
     }
 };
 exports.verifyRazorpayPayment = verifyRazorpayPayment;
-// ✅ Transaction Save Logic
+// 💾 Save Transactions for all slabs
 const recordTransaction = async (prisma, { studentId, mode, status, slabs }) => {
     if (!studentId || !mode || !status || !Array.isArray(slabs) || slabs.length === 0) {
         throw new Error('Missing required fields or empty slabs');
     }
     for (const slab of slabs) {
-        // 🔥 Auto-generate next slip ID
-        const maxSlip = await prisma.transportTransaction.aggregate({
-            _max: { slipId: true },
-        });
-        const newSlipId = (maxSlip._max.slipId || 0) + 1;
         await prisma.transportTransaction.create({
             data: {
                 studentId,
@@ -127,7 +118,7 @@ const recordTransaction = async (prisma, { studentId, mode, status, slabs }) => 
                 transactionId: slab.transactionId || undefined,
                 razorpayOrderId: slab.razorpayOrderId || undefined,
                 razorpayPaymentId: slab.razorpayPaymentId || undefined,
-                slipId: newSlipId, // ✅ Correctly set slipId as number
+                slipId: parseInt(slab.slipId || '0'),
                 createdAt: new Date(),
             },
         });

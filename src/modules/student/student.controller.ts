@@ -1,7 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcrypt';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs/promises';
 
 // Utility to get current month if needed
 function getCurrentMonth(): string {
@@ -252,27 +252,24 @@ export const studentLogin = async (req: FastifyRequest, reply: FastifyReply) => 
   });
 };
 
-export const uploadProfilePicture = async (req: any, reply: FastifyReply) => {
-  const { id } = req.body;
+export const uploadProfilePicture = async (req: FastifyRequest, reply: FastifyReply) => {
+    // ✅ Fix TypeScript error using "as any"
+    const file = await (req.file as any)('image');
 
-  if (!req.file) {
-    return reply.code(400).send({ message: 'No file uploaded' });
-  }
+    if (!file) {
+      return reply.code(400).send({ message: 'No image file uploaded.' });
+    }
 
-  const filePath = `/uploads/profile/${req.file.filename}`;
+    const ext = path.extname(file.filename);
+    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const savePath = path.join(__dirname, '../../public/uploads/profile', uniqueName);
 
-  try {
-    const student = await req.server.prisma.student.update({
-      where: { id },
-      data: { profilePicture: filePath },
-    });
+    const buffer = await file.toBuffer();
+    await fs.mkdir(path.dirname(savePath), { recursive: true });
+    await fs.writeFile(savePath, buffer);
 
-    return reply.send({ success: true, path: filePath, student });
-  } catch (err) {
-    console.error("Upload error:", err);
-    return reply.code(500).send({ message: 'Error saving profile picture' });
-  }
-};
+    return reply.send({ message: 'Upload successful', filename: uniqueName });
+  };
 
 // 📊 Get student count per route and total
 export const getStudentCountByRoute = async (req: FastifyRequest, reply: FastifyReply) => {

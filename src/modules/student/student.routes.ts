@@ -1,7 +1,4 @@
 import { FastifyPluginAsync } from 'fastify';
-import path from 'path';
-import fs from 'fs';
-import multer from 'fastify-multer';
 
 import {
   createStudent,
@@ -11,8 +8,8 @@ import {
   toggleStudentStatus,
   getAllStudents,
   studentLogin,
-  uploadProfilePicture, // ✅ Upload profile controller
-  getStudentCountByRoute, // ✅ New routewise count controller
+  uploadProfilePicture, // ✅ Will use req.file()
+  getStudentCountByRoute,
 } from './student.controller';
 
 import {
@@ -20,24 +17,8 @@ import {
   downloadSampleExcel,
 } from './import.controller';
 
-// 📦 Multer setup for file upload
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.resolve('public/uploads/profile');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  },
-});
-
-const upload = multer({ storage });
-
 const studentRoutes: FastifyPluginAsync = async (fastify) => {
-  // 🔌 Register multer parser once
-  fastify.register(multer.contentParser);
+  // ❌ No multer used, since we're using @fastify/multipart
 
   // 📌 Core CRUD
   fastify.post('/', createStudent);
@@ -51,15 +32,15 @@ const studentRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/login', studentLogin);
 
   // 📥 Excel Import
-  fastify.post('/import', importStudentsFromExcel);
+  fastify.post('/import', importStudentsFromExcel); // ✅ req.file() works here
 
   // 📤 Sample Excel Template
   fastify.get('/download-sample', downloadSampleExcel);
 
-  // 📸 Upload Profile Picture
-  fastify.post('/upload-picture', { preHandler: upload.single('image') }, uploadProfilePicture);
+  // 📸 Upload Profile Picture (you must use req.file('image') inside controller)
+  fastify.post('/upload-picture', uploadProfilePicture);
 
-  // 📊 New: Route-wise Student Count
+  // 📊 Route-wise Student Count
   fastify.get('/count-by-route', getStudentCountByRoute);
 };
 

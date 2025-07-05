@@ -31,36 +31,53 @@ const studentOptOutSlab_routes_1 = __importDefault(require("./modules/studentOpt
 const app = (0, fastify_1.default)();
 const start = async () => {
     try {
-        // 🔌 Plugins
-        await app.register(multipart_1.default, { limits: { fileSize: 10 * 1024 * 1024 } });
+        // 🔌 CORS
         await app.register(cors_1.default, {
-            origin: [
-                'http://localhost:3001', // keep for local dev
-                'https://transport.edubridgeerp.in', // allow your live frontend
-            ],
+            origin: (origin, cb) => {
+                console.log('Origin:', origin);
+                const allowedOrigins = [
+                    'https://lstravel.edubridgeerp.in',
+                    'http://localhost:3000',
+                    'http://localhost:3001',
+                ];
+                if (!origin || allowedOrigins.includes(origin)) {
+                    cb(null, true); // ✅ ALLOW
+                }
+                else {
+                    cb(new Error('Not allowed by CORS'), false); // ✅ BLOCK with explicit second arg
+                }
+            },
             credentials: true,
             methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         });
+        // 🔐 JWT setup
         await app.register(jwt_1.default, {
-            secret: process.env.JWT_SECRET || 'supersecret123',
+            secret: process.env.JWT_SECRET || 'supersecret',
         });
-        // 🔌 Register Prisma Plugin (✅ important!)
+        // ✅ Expose jwtSign on request object
+        app.addHook('onRequest', async (req) => {
+            req.jwtSign = async (payload) => {
+                return app.jwt.sign(payload); // ✅ wrapped in async
+            };
+        });
+        // 📦 Other plugins
+        await app.register(multipart_1.default, { limits: { fileSize: 10 * 1024 * 1024 } });
         await app.register(prisma_1.default);
-        // 🛡️ JWT Decorator
+        // 🛡️ Protect routes
         app.decorate('authenticate', async function (request, reply) {
             try {
-                await request.jwtVerify();
+                await request.jwtVerify(); // Provided by @fastify/jwt
             }
             catch {
                 reply.code(401).send({ message: 'Unauthorized' });
             }
         });
-        // 📂 Serve static files from /public
+        // 📂 Serve static assets
         await app.register(static_1.default, {
-            root: path_1.default.join(__dirname, '../public'), // adjust if needed
-            prefix: '/public/', // Access via /public/uploads/profile/filename.jpg
+            root: path_1.default.join(__dirname, '../public'),
+            prefix: '/public/',
         });
-        // 📦 Routes
+        // 🔗 Routes
         await app.register(auth_routes_1.default, { prefix: '/api/auth' });
         await app.register(vehicle_routes_1.default, { prefix: '/api/vehicles' });
         await app.register(driver_routes_1.default, { prefix: '/api/drivers' });

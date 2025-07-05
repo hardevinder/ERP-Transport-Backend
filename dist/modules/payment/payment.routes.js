@@ -5,12 +5,24 @@ const payment_controller_1 = require("./payment.controller");
 const createOrderSchema = {
     body: {
         type: 'object',
-        required: ['studentId', 'amount', 'slab', 'feeStructureId'],
+        required: ['studentId', 'amount', 'slabs'],
         properties: {
             studentId: { type: 'string', minLength: 1 },
             amount: { type: 'number', minimum: 0 },
-            slab: { type: 'string', minLength: 1 },
-            feeStructureId: { type: 'string', minLength: 1 },
+            slabs: {
+                type: 'array',
+                minItems: 1,
+                items: {
+                    type: 'object',
+                    required: ['slab', 'amount', 'feeStructureId'],
+                    properties: {
+                        slab: { type: 'string', minLength: 1 },
+                        amount: { type: 'number', minimum: 0 },
+                        feeStructureId: { type: 'string', minLength: 1 },
+                    },
+                    additionalProperties: false,
+                },
+            },
         },
         additionalProperties: false,
     },
@@ -25,8 +37,7 @@ const verifyPaymentSchema = {
             'razorpay_signature',
             'studentId',
             'amount',
-            'slab',
-            'feeStructureId',
+            'slabs',
         ],
         properties: {
             razorpay_order_id: { type: 'string', minLength: 1 },
@@ -34,8 +45,20 @@ const verifyPaymentSchema = {
             razorpay_signature: { type: 'string', minLength: 1 },
             studentId: { type: 'string', minLength: 1 },
             amount: { type: 'number', minimum: 0 },
-            slab: { type: 'string', minLength: 1 },
-            feeStructureId: { type: 'string', minLength: 1 },
+            slabs: {
+                type: 'array',
+                minItems: 1,
+                items: {
+                    type: 'object',
+                    required: ['slab', 'amount', 'feeStructureId'],
+                    properties: {
+                        slab: { type: 'string', minLength: 1 },
+                        amount: { type: 'number', minimum: 0 },
+                        feeStructureId: { type: 'string', minLength: 1 },
+                    },
+                    additionalProperties: false,
+                },
+            },
         },
         additionalProperties: false,
     },

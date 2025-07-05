@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addRouteStopsBulk = exports.toggleRouteStatus = exports.deleteRoute = exports.updateRoute = exports.getRouteById = exports.getRoutes = exports.createRoute = void 0;
+exports.countRoutes = exports.addRouteStopsBulk = exports.toggleRouteStatus = exports.deleteRoute = exports.updateRoute = exports.getRouteById = exports.getRoutes = exports.createRoute = void 0;
 const createRoute = async (req, reply) => {
     const { name, startPoint, endPoint, driverId, vehicleId, stops, override } = req.body;
     if (!name || !startPoint || !endPoint) {
@@ -228,3 +228,22 @@ const addRouteStopsBulk = async (req, reply) => {
     }
 };
 exports.addRouteStopsBulk = addRouteStopsBulk;
+const countRoutes = async (req, reply) => {
+    try {
+        const totalRoutes = await req.server.prisma.route.count();
+        reply.send({
+            status: 200,
+            message: 'Total number of routes',
+            data: { totalRoutes },
+        });
+    }
+    catch (error) {
+        console.error('❌ Error counting routes:', error);
+        reply.code(500).send({
+            status: 500,
+            message: 'Error counting routes',
+            error: error.message,
+        });
+    }
+};
+exports.countRoutes = countRoutes;

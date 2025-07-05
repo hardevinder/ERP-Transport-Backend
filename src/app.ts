@@ -10,7 +10,6 @@ import prismaPlugin from './plugins/prisma';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 
-
 // Route Modules
 import authRoutes from './modules/auth/auth.routes';
 import vehicleRoutes from './modules/vehicle/vehicle.routes';
@@ -28,6 +27,13 @@ import concessionRoutes from './modules/concessionSetting/concessionSetting.rout
 import fineSettingRoutes from './modules/fineSetting/fineSetting.routes';
 import studentOptOutSlabRoutes from './modules/studentOptOutSlab/studentOptOutSlab.routes';
 
+// Extend FastifyRequest type for jwtSign (optional, helps TypeScript)
+declare module 'fastify' {
+  interface FastifyRequest {
+    jwtSign(payload: any): Promise<string>;
+  }
+}
+
 // Define custom Fastify instance interface
 interface CustomFastifyInstance extends FastifyInstance {
   prisma: PrismaClient;
@@ -38,42 +44,59 @@ const app = Fastify() as CustomFastifyInstance;
 
 const start = async () => {
   try {
-    // 🔌 Plugins
-    await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
+    // 🔌 CORS
     await app.register(cors, {
-        origin: [
-          'https://lstravel.edubridgeerp.in',  // ✅ your live frontend
+      origin: (origin, cb) => {
+        console.log('Origin:', origin);
+        const allowedOrigins = [
+          'https://lstravel.edubridgeerp.in',
           'http://localhost:3000',
-          'http://localhost:3001', // keep for local dev
-          // 'https://transport.edubridgeerp.in', // allow your live frontend
-        ],
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      });
-
-    await app.register(jwt, {
-      secret: process.env.JWT_SECRET || 'supersecret123',
+          'http://localhost:3001',
+        ];
+        if (!origin || allowedOrigins.includes(origin)) {
+          cb(null, true); // ✅ ALLOW
+        } else {
+          cb(new Error('Not allowed by CORS'), false); // ✅ BLOCK with explicit second arg
+        }
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     });
 
-    // 🔌 Register Prisma Plugin (✅ important!)
+
+    // 🔐 JWT setup
+    await app.register(jwt, {
+      secret: process.env.JWT_SECRET || 'supersecret',
+    });
+
+    // ✅ Expose jwtSign on request object
+    app.addHook('onRequest', async (req) => {
+      req.jwtSign = async (payload) => {
+      return app.jwt.sign(payload); // ✅ wrapped in async
+    };
+
+    });
+
+    // 📦 Other plugins
+    await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
     await app.register(prismaPlugin);
 
-    // 🛡️ JWT Decorator
+    // 🛡️ Protect routes
     app.decorate('authenticate', async function (request, reply) {
       try {
-        await request.jwtVerify();
+        await request.jwtVerify(); // Provided by @fastify/jwt
       } catch {
         reply.code(401).send({ message: 'Unauthorized' });
       }
     });
 
-    // 📂 Serve static files from /public
+    // 📂 Serve static assets
     await app.register(fastifyStatic, {
-      root: path.join(__dirname, '../public'), // adjust if needed
-      prefix: '/public/', // Access via /public/uploads/profile/filename.jpg
+      root: path.join(__dirname, '../public'),
+      prefix: '/public/',
     });
 
-    // 📦 Routes
+    // 🔗 Routes
     await app.register(authRoutes, { prefix: '/api/auth' });
     await app.register(vehicleRoutes, { prefix: '/api/vehicles' });
     await app.register(driverRoutes, { prefix: '/api/drivers' });
@@ -98,7 +121,6 @@ const start = async () => {
     const PORT = parseInt(process.env.PORT || '3000', 10);
     await app.listen({ port: PORT, host: '0.0.0.0' });
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-
   } catch (err) {
     console.error('❌ Server failed to start:', err);
     process.exit(1);

@@ -7,6 +7,10 @@ async function routeRoutes(server) {
     server.get('/', {
         preHandler: [server.authenticate],
     }, route_controller_1.getRoutes);
+    // 🔢 Get total route count
+    server.get('/count', {
+        preHandler: [server.authenticate],
+    }, route_controller_1.countRoutes); // ✅ New route added
     // 📥 Get route by ID
     server.get('/:id', {
         preHandler: [server.authenticate],

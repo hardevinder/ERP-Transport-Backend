@@ -32,10 +32,11 @@ const login = async (req, reply) => {
         const valid = await bcrypt_1.default.compare(password, user.password);
         if (!valid)
             return reply.code(401).send({ message: 'Invalid email or password' });
-        const token = req.server.jwt.sign({ id: user.id, email: user.email, role: user.role });
+        const token = await req.jwtSign({ id: user.id, email: user.email, role: user.role });
         reply.send({ token });
     }
     catch (err) {
+        console.error('🔥 Login Error:', err); // <== Add this
         reply.code(500).send({ message: 'Internal server error' });
     }
 };

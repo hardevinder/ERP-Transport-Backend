@@ -3,8 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadProfilePicture = exports.studentLogin = exports.getAllStudents = exports.toggleStudentStatus = exports.deleteStudent = exports.getStudentById = exports.updateStudent = exports.createStudent = void 0;
+exports.getStudentCountByRoute = exports.uploadProfilePicture = exports.studentLogin = exports.getAllStudents = exports.toggleStudentStatus = exports.deleteStudent = exports.getStudentById = exports.updateStudent = exports.createStudent = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
+const path_1 = __importDefault(require("path"));
+const promises_1 = __importDefault(require("fs/promises"));
 // Utility to get current month if needed
 function getCurrentMonth() {
     const now = new Date();
@@ -185,21 +187,67 @@ const studentLogin = async (req, reply) => {
 };
 exports.studentLogin = studentLogin;
 const uploadProfilePicture = async (req, reply) => {
-    const { id } = req.body;
-    if (!req.file) {
-        return reply.code(400).send({ message: 'No file uploaded' });
+    // ✅ Fix TypeScript error using "as any"
+    const file = await req.file('image');
+    if (!file) {
+        return reply.code(400).send({ message: 'No image file uploaded.' });
     }
-    const filePath = `/uploads/profile/${req.file.filename}`;
-    try {
-        const student = await req.server.prisma.student.update({
-            where: { id },
-            data: { profilePicture: filePath },
-        });
-        return reply.send({ success: true, path: filePath, student });
-    }
-    catch (err) {
-        console.error("Upload error:", err);
-        return reply.code(500).send({ message: 'Error saving profile picture' });
-    }
+    const ext = path_1.default.extname(file.filename);
+    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const savePath = path_1.default.join(__dirname, '../../public/uploads/profile', uniqueName);
+    const buffer = await file.toBuffer();
+    await promises_1.default.mkdir(path_1.default.dirname(savePath), { recursive: true });
+    await promises_1.default.writeFile(savePath, buffer);
+    return reply.send({ message: 'Upload successful', filename: uniqueName });
 };
 exports.uploadProfilePicture = uploadProfilePicture;
+// 📊 Get student count per route and total
+const getStudentCountByRoute = async (req, reply) => {
+    try {
+        // 1️⃣ Group students by routeId and count
+        const routeWiseCounts = await req.server.prisma.student.groupBy({
+            by: ['routeId'],
+            where: {
+                status: 'active',
+                routeId: {
+                    not: null,
+                },
+            },
+            _count: {
+                id: true,
+            },
+        });
+        // 2️⃣ Fetch route names
+        const routeIds = routeWiseCounts.map((r) => r.routeId);
+        const routes = await req.server.prisma.route.findMany({
+            where: {
+                id: { in: routeIds },
+            },
+        });
+        const routeMap = new Map(routes.map(r => [r.id, r.name]));
+        // 3️⃣ Format data with route names
+        const result = routeWiseCounts.map(r => ({
+            routeId: r.routeId,
+            routeName: routeMap.get(r.routeId) || 'Unknown',
+            studentCount: r._count.id,
+        }));
+        // 4️⃣ Total count
+        const total = result.reduce((sum, r) => sum + r.studentCount, 0);
+        return reply.send({
+            status: 200,
+            message: 'Student count by route',
+            data: {
+                routes: result,
+                total,
+            },
+        });
+    }
+    catch (err) {
+        console.error("STUDENT COUNT ROUTEWISE ERROR:", err);
+        return reply.code(500).send({
+            message: 'Failed to fetch student count by route',
+            error: err.message,
+        });
+    }
+};
+exports.getStudentCountByRoute = getStudentCountByRoute;

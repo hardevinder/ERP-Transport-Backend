@@ -29,12 +29,14 @@ export const login = async (req: FastifyRequest, reply: FastifyReply) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return reply.code(401).send({ message: 'Invalid email or password' });
 
-    const token = req.server.jwt.sign({ id: user.id, email: user.email, role: user.role });
+    const token = await req.jwtSign({ id: user.id, email: user.email, role: user.role });
     reply.send({ token });
   } catch (err) {
+    console.error('🔥 Login Error:', err); // <== Add this
     reply.code(500).send({ message: 'Internal server error' });
   }
 };
+
 
 export const getMe = async (req: FastifyRequest, reply: FastifyReply) => {
   // This assumes JWT has been verified and payload is attached
