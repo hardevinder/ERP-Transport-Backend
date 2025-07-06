@@ -108,13 +108,22 @@ const recordTransaction = async (req, reply) => {
 exports.recordTransaction = recordTransaction;
 const getTransactions = async (req, reply) => {
     const query = req.query;
+    const user = req.user; // ⬅️ from JWT
     console.log("REQ QUERY:", query);
+    console.log("AUTH USER:", user);
     const slipId = query.slipId ? parseInt(query.slipId, 10) : undefined;
     const whereClause = {
-        ...(query.studentId && { studentId: query.studentId }),
         ...(slipId && { slipId }),
         ...(query.status && { status: query.status }),
     };
+    // 🔐 If user is a student, restrict to their own transactions
+    if (user?.role === 'student') {
+        whereClause.studentId = user.studentId;
+    }
+    // 🧑‍💼 If admin is querying with studentId
+    if (query.studentId && user?.role !== 'student') {
+        whereClause.studentId = query.studentId;
+    }
     console.log("WHERE CLAUSE:", whereClause);
     const take = query.limit ? Number(query.limit) : 50;
     const skip = query.offset ? Number(query.offset) : 0;
@@ -366,6 +375,7 @@ const getFeeDueDetails = async (req, reply) => {
                 paidAmount: paid,
                 paymentDate: latest?.paymentDate || null,
                 dueDate,
+                slipId: latest?.slipId || null, // ✅ Add this line
             };
         });
         return reply.send({ studentId, slabs: dueDetails });

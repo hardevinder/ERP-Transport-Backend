@@ -81,6 +81,14 @@ const start = async () => {
     await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
     await app.register(prismaPlugin);
 
+   await app.register(fastifyStatic, {
+      root: path.join(process.cwd(), 'public'), // ✅ This works in dev AND production
+      prefix: '/public/',
+      decorateReply: false,
+    });
+
+
+
     // 🛡️ Protect routes
     app.decorate('authenticate', async function (request, reply) {
       try {
@@ -91,10 +99,9 @@ const start = async () => {
     });
 
     // 📂 Serve static assets
-    await app.register(fastifyStatic, {
-      root: path.join(__dirname, '../public'),
-      prefix: '/public/',
-    });
+    // 📂 Serve static assets from public folder
+
+
 
     // 🔗 Routes
     await app.register(authRoutes, { prefix: '/api/auth' });

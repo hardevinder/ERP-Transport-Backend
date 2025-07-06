@@ -10,6 +10,7 @@ import {
   studentLogin,
   uploadProfilePicture, // ✅ Will use req.file()
   getStudentCountByRoute,
+  changePassword, 
 } from './student.controller';
 
 import {
@@ -30,6 +31,8 @@ const studentRoutes: FastifyPluginAsync = async (fastify) => {
 
   // 🔐 Login
   fastify.post('/login', studentLogin);
+
+  fastify.post('/change-password', changePassword); // ✅ Register route here
 
   // 📥 Excel Import
   fastify.post('/import', importStudentsFromExcel); // ✅ req.file() works here

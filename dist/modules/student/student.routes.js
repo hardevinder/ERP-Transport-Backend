@@ -13,6 +13,7 @@ const studentRoutes = async (fastify) => {
     fastify.patch('/:id/toggle-status', student_controller_1.toggleStudentStatus);
     // 🔐 Login
     fastify.post('/login', student_controller_1.studentLogin);
+    fastify.post('/change-password', student_controller_1.changePassword); // ✅ Register route here
     // 📥 Excel Import
     fastify.post('/import', import_controller_1.importStudentsFromExcel); // ✅ req.file() works here
     // 📤 Sample Excel Template

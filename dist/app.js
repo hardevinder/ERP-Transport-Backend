@@ -63,6 +63,11 @@ const start = async () => {
         // 📦 Other plugins
         await app.register(multipart_1.default, { limits: { fileSize: 10 * 1024 * 1024 } });
         await app.register(prisma_1.default);
+        await app.register(static_1.default, {
+            root: path_1.default.join(process.cwd(), 'public'), // ✅ This works in dev AND production
+            prefix: '/public/',
+            decorateReply: false,
+        });
         // 🛡️ Protect routes
         app.decorate('authenticate', async function (request, reply) {
             try {
@@ -73,10 +78,7 @@ const start = async () => {
             }
         });
         // 📂 Serve static assets
-        await app.register(static_1.default, {
-            root: path_1.default.join(__dirname, '../public'),
-            prefix: '/public/',
-        });
+        // 📂 Serve static assets from public folder
         // 🔗 Routes
         await app.register(auth_routes_1.default, { prefix: '/api/auth' });
         await app.register(vehicle_routes_1.default, { prefix: '/api/vehicles' });

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getStudentCountByRoute = exports.uploadProfilePicture = exports.studentLogin = exports.getAllStudents = exports.toggleStudentStatus = exports.deleteStudent = exports.getStudentById = exports.updateStudent = exports.createStudent = void 0;
+exports.changePassword = exports.getStudentCountByRoute = exports.uploadProfilePicture = exports.studentLogin = exports.getAllStudents = exports.toggleStudentStatus = exports.deleteStudent = exports.getStudentById = exports.updateStudent = exports.createStudent = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const path_1 = __importDefault(require("path"));
 const promises_1 = __importDefault(require("fs/promises"));
@@ -180,6 +180,7 @@ const studentLogin = async (req, reply) => {
             stop: student.stop,
             addressLine: student.addressLine,
             cityOrVillage: student.cityOrVillage,
+            profilePicture: student.profilePicture, // ✅ ADD THIS LINE
             gender: student.gender,
             transactions: student.transactions,
         },
@@ -187,18 +188,41 @@ const studentLogin = async (req, reply) => {
 };
 exports.studentLogin = studentLogin;
 const uploadProfilePicture = async (req, reply) => {
-    // ✅ Fix TypeScript error using "as any"
-    const file = await req.file('image');
-    if (!file) {
-        return reply.code(400).send({ message: 'No image file uploaded.' });
+    try {
+        const parts = req.parts();
+        let studentId;
+        let uploadedFile;
+        for await (const part of parts) {
+            if (part.type === 'file') {
+                uploadedFile = part;
+            }
+            else if (part.type === 'field' && part.fieldname === 'id') {
+                studentId = part.value;
+            }
+        }
+        if (!studentId || !uploadedFile) {
+            return reply.code(400).send({ message: 'Missing student ID or file.' });
+        }
+        const ext = path_1.default.extname(uploadedFile.filename);
+        const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+        const relativePath = `/uploads/profile/${uniqueName}`;
+        const savePath = path_1.default.join(process.cwd(), 'public', 'uploads', 'profile', uniqueName);
+        const buffer = await uploadedFile.toBuffer();
+        await promises_1.default.mkdir(path_1.default.dirname(savePath), { recursive: true });
+        await promises_1.default.writeFile(savePath, buffer);
+        const updatedStudent = await req.server.prisma.student.update({
+            where: { id: studentId },
+            data: { profilePicture: relativePath },
+        });
+        return reply.send({
+            message: 'Profile photo uploaded successfully',
+            student: updatedStudent,
+        });
     }
-    const ext = path_1.default.extname(file.filename);
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    const savePath = path_1.default.join(__dirname, '../../public/uploads/profile', uniqueName);
-    const buffer = await file.toBuffer();
-    await promises_1.default.mkdir(path_1.default.dirname(savePath), { recursive: true });
-    await promises_1.default.writeFile(savePath, buffer);
-    return reply.send({ message: 'Upload successful', filename: uniqueName });
+    catch (error) {
+        console.error('❌ Upload error:', error);
+        return reply.code(500).send({ message: 'Failed to upload profile picture' });
+    }
 };
 exports.uploadProfilePicture = uploadProfilePicture;
 // 📊 Get student count per route and total
@@ -251,3 +275,25 @@ const getStudentCountByRoute = async (req, reply) => {
     }
 };
 exports.getStudentCountByRoute = getStudentCountByRoute;
+// 🔒 Change student password
+const changePassword = async (req, reply) => {
+    const { studentId, currentPassword, newPassword } = req.body;
+    if (!studentId || !currentPassword || !newPassword) {
+        return reply.code(400).send({ message: 'All fields are required' });
+    }
+    const student = await req.server.prisma.student.findUnique({ where: { id: studentId } });
+    if (!student || !student.password) {
+        return reply.code(404).send({ message: 'Student not found or password not set' });
+    }
+    const isMatch = await bcrypt_1.default.compare(currentPassword, student.password);
+    if (!isMatch) {
+        return reply.code(401).send({ message: 'Current password is incorrect' });
+    }
+    const hashedPassword = await bcrypt_1.default.hash(newPassword, 10);
+    await req.server.prisma.student.update({
+        where: { id: studentId },
+        data: { password: hashedPassword },
+    });
+    reply.send({ message: 'Password changed successfully' });
+};
+exports.changePassword = changePassword;
