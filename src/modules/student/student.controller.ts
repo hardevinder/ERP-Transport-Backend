@@ -2,6 +2,8 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcrypt';
 import path from 'path';
 import fs from 'fs/promises';
+import { prisma } from '../../utils/prisma';
+
 
 // Utility to get current month if needed
 function getCurrentMonth(): string {
@@ -246,6 +248,7 @@ export const studentLogin = async (req: FastifyRequest, reply: FastifyReply) => 
       stop: student.stop,
       addressLine: student.addressLine,
       cityOrVillage: student.cityOrVillage,
+       profilePicture: student.profilePicture, // ✅ ADD THIS LINE
       gender: student.gender,
       transactions: student.transactions,
     },
@@ -253,23 +256,51 @@ export const studentLogin = async (req: FastifyRequest, reply: FastifyReply) => 
 };
 
 export const uploadProfilePicture = async (req: FastifyRequest, reply: FastifyReply) => {
-    // ✅ Fix TypeScript error using "as any"
-    const file = await (req.file as any)('image');
+  try {
+    const parts = req.parts();
 
-    if (!file) {
-      return reply.code(400).send({ message: 'No image file uploaded.' });
+    let studentId: string | undefined;
+    let uploadedFile: any;
+
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        uploadedFile = part;
+      } else if (part.type === 'field' && part.fieldname === 'id') {
+        studentId = part.value as string;
+
+      }
     }
 
-    const ext = path.extname(file.filename);
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    const savePath = path.join(__dirname, '../../public/uploads/profile', uniqueName);
+    if (!studentId || !uploadedFile) {
+      return reply.code(400).send({ message: 'Missing student ID or file.' });
+    }
 
-    const buffer = await file.toBuffer();
+    const ext = path.extname(uploadedFile.filename);
+    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const relativePath = `/uploads/profile/${uniqueName}`;
+    const savePath = path.join(process.cwd(), 'public', 'uploads', 'profile', uniqueName);
+
+    const buffer = await uploadedFile.toBuffer();
     await fs.mkdir(path.dirname(savePath), { recursive: true });
     await fs.writeFile(savePath, buffer);
 
-    return reply.send({ message: 'Upload successful', filename: uniqueName });
-  };
+    const updatedStudent = await req.server.prisma.student.update({
+      where: { id: studentId },
+      data: { profilePicture: relativePath },
+    });
+
+    return reply.send({
+      message: 'Profile photo uploaded successfully',
+      student: updatedStudent,
+    });
+
+  } catch (error) {
+    console.error('❌ Upload error:', error);
+    return reply.code(500).send({ message: 'Failed to upload profile picture' });
+  }
+};
+
+
 
 // 📊 Get student count per route and total
 export const getStudentCountByRoute = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -324,4 +355,37 @@ export const getStudentCountByRoute = async (req: FastifyRequest, reply: Fastify
     });
   }
 };
+
+// 🔒 Change student password
+export const changePassword = async (req: FastifyRequest, reply: FastifyReply) => {
+  const { studentId, currentPassword, newPassword } = req.body as {
+    studentId: string;
+    currentPassword: string;
+    newPassword: string;
+  };
+
+  if (!studentId || !currentPassword || !newPassword) {
+    return reply.code(400).send({ message: 'All fields are required' });
+  }
+
+  const student = await req.server.prisma.student.findUnique({ where: { id: studentId } });
+
+  if (!student || !student.password) {
+    return reply.code(404).send({ message: 'Student not found or password not set' });
+  }
+
+  const isMatch = await bcrypt.compare(currentPassword, student.password);
+  if (!isMatch) {
+    return reply.code(401).send({ message: 'Current password is incorrect' });
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await req.server.prisma.student.update({
+    where: { id: studentId },
+    data: { password: hashedPassword },
+  });
+
+  reply.send({ message: 'Password changed successfully' });
+};
+
 

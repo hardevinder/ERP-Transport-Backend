@@ -87,10 +87,11 @@ const start = async () => {
       }
     });
 
-    // 📂 Static files
+    // 📂 Static files (works in dev and production)
     await app.register(fastifyStatic, {
-      root: path.join(__dirname, '../public'),
+      root: path.join(process.cwd(), 'public'),
       prefix: '/public/',
+      decorateReply: false,
     });
 
     // 🔗 Routes

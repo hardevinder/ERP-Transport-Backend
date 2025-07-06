@@ -153,15 +153,26 @@ export const getTransactions = async (req: FastifyRequest, reply: FastifyReply) 
     status?: string;
   };
 
+  const user = req.user as { studentId?: string; role?: string }; // ⬅️ from JWT
   console.log("REQ QUERY:", query);
+  console.log("AUTH USER:", user);
 
   const slipId = query.slipId ? parseInt(query.slipId, 10) : undefined;
 
   const whereClause: any = {
-    ...(query.studentId && { studentId: query.studentId }),
     ...(slipId && { slipId }),
     ...(query.status && { status: query.status }),
   };
+
+  // 🔐 If user is a student, restrict to their own transactions
+  if (user?.role === 'student') {
+    whereClause.studentId = user.studentId;
+  }
+
+  // 🧑‍💼 If admin is querying with studentId
+  if (query.studentId && user?.role !== 'student') {
+    whereClause.studentId = query.studentId;
+  }
 
   console.log("WHERE CLAUSE:", whereClause);
 
@@ -192,6 +203,7 @@ export const getTransactions = async (req: FastifyRequest, reply: FastifyReply) 
     });
   }
 };
+
 
 
 
@@ -441,6 +453,7 @@ export const getFeeDueDetails = async (req: FastifyRequest, reply: FastifyReply)
         paidAmount: paid,
         paymentDate: latest?.paymentDate||null,
         dueDate,
+        slipId: latest?.slipId || null,   // ✅ Add this line
       };
     });
 
