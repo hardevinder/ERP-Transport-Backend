@@ -7,3 +7,4 @@ node_modules/
 # Prisma generated client and schema cache (if used)
 generated/
 prisma/generated/
+dist/

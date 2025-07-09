@@ -27,14 +27,13 @@ import concessionRoutes from './modules/concessionSetting/concessionSetting.rout
 import fineSettingRoutes from './modules/fineSetting/fineSetting.routes';
 import studentOptOutSlabRoutes from './modules/studentOptOutSlab/studentOptOutSlab.routes';
 
-// Extend FastifyRequest type for jwtSign (optional, helps TypeScript)
+// Extend FastifyRequest type
 declare module 'fastify' {
   interface FastifyRequest {
     jwtSign(payload: any): Promise<string>;
   }
 }
 
-// Define custom Fastify instance interface
 interface CustomFastifyInstance extends FastifyInstance {
   prisma: PrismaClient;
   authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
@@ -54,54 +53,46 @@ const start = async () => {
           'http://localhost:3001',
         ];
         if (!origin || allowedOrigins.includes(origin)) {
-          cb(null, true); // ✅ ALLOW
+          cb(null, true);
         } else {
-          cb(new Error('Not allowed by CORS'), false); // ✅ BLOCK with explicit second arg
+          cb(new Error('Not allowed by CORS'), false);
         }
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     });
 
-
     // 🔐 JWT setup
     await app.register(jwt, {
       secret: process.env.JWT_SECRET || 'supersecret',
     });
 
-    // ✅ Expose jwtSign on request object
+    // ✅ Expose jwtSign
     app.addHook('onRequest', async (req) => {
       req.jwtSign = async (payload) => {
-      return app.jwt.sign(payload); // ✅ wrapped in async
-    };
-
+        return app.jwt.sign(payload);
+      };
     });
 
-    // 📦 Other plugins
+    // 📦 Multipart + Prisma
     await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
     await app.register(prismaPlugin);
 
-   await app.register(fastifyStatic, {
-      root: path.join(process.cwd(), 'public'), // ✅ This works in dev AND production
-      prefix: '/public/',
-      decorateReply: false,
-    });
-
-
-
-    // 🛡️ Protect routes
+    // 🛡️ Auth middleware
     app.decorate('authenticate', async function (request, reply) {
       try {
-        await request.jwtVerify(); // Provided by @fastify/jwt
+        await request.jwtVerify();
       } catch {
         reply.code(401).send({ message: 'Unauthorized' });
       }
     });
 
-    // 📂 Serve static assets
-    // 📂 Serve static assets from public folder
-
-
+    // 📂 Static files (works in dev and production)
+    await app.register(fastifyStatic, {
+      root: path.join(process.cwd(), 'public'),
+      prefix: '/public/',
+      decorateReply: false,
+    });
 
     // 🔗 Routes
     await app.register(authRoutes, { prefix: '/api/auth' });
@@ -123,7 +114,7 @@ const start = async () => {
     // ✅ Health Check
     app.get('/', async () => ({ status: '✅ School Transport ERP API is running 🚍' }));
 
-    // 🚀 Start Server
+    // 🚀 Start server
     console.log('⚙️ Starting server...');
     const PORT = parseInt(process.env.PORT || '3000', 10);
     await app.listen({ port: PORT, host: '0.0.0.0' });
