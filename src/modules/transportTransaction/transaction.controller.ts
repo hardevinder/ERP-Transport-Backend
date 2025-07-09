@@ -616,7 +616,7 @@ export const filterTransactionsByDate = async (req: FastifyRequest, reply: Fasti
     });
 
     const totalCollection = transactions.reduce((sum, txn) => {
-      return sum + (txn.amount || 0) + (txn.fineAmount || 0);
+      return sum + (txn.amount || 0) + (txn.fine || 0);  // ✅ fixed
     }, 0);
 
     return reply.send({
@@ -659,8 +659,9 @@ export const getTodayTransactions = async (req: FastifyRequest, reply: FastifyRe
     });
 
     const totalCollection = transactions.reduce((sum, txn) => {
-      return sum + (txn.amount || 0) + (txn.fineAmount || 0);
+      return sum + (txn.amount || 0) + (txn.fine || 0);  // ✅ fixed
     }, 0);
+
 
     return reply.send({ transactions, totalCollection });
   } catch (error: any) {

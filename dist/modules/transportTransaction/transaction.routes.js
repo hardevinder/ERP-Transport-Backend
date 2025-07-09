@@ -10,6 +10,9 @@ const transactionRoutes = async (fastify) => {
     // ✅ Core CRUD routes
     fastify.post('/', transaction_controller_1.recordTransaction);
     fastify.get('/', transaction_controller_1.getTransactions);
+    // ✅ New: Filter by start & end date
+    fastify.get('/filter-by-date', transaction_controller_1.filterTransactionsByDate); // ✅ Add this
+    fastify.get('/today', transaction_controller_1.getTodayTransactions);
     // ⚠️ Keep dynamic ID route at the end!
     fastify.get('/:id', transaction_controller_1.getTransactionById);
     fastify.put('/:id', transaction_controller_1.updateTransaction);
