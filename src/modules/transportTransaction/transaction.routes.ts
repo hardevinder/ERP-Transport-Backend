@@ -8,6 +8,8 @@ import {
   getFeeDue,
   getFeeDueDetails,
   getCollectionSummaryCards,
+  filterTransactionsByDate,
+  getTodayTransactions
 } from './transaction.controller';
 
 const transactionRoutes: FastifyPluginAsync = async (fastify) => {
@@ -21,6 +23,11 @@ const transactionRoutes: FastifyPluginAsync = async (fastify) => {
   // ✅ Core CRUD routes
   fastify.post('/', recordTransaction);
   fastify.get('/', getTransactions);
+
+    // ✅ New: Filter by start & end date
+  fastify.get('/filter-by-date', filterTransactionsByDate); // ✅ Add this
+  fastify.get('/today', getTodayTransactions);
+
 
   // ⚠️ Keep dynamic ID route at the end!
   fastify.get('/:id', getTransactionById);

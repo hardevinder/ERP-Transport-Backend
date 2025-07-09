@@ -587,3 +587,87 @@ export const getCollectionSummaryCards = async (req: FastifyRequest, reply: Fast
 };
 
 
+export const filterTransactionsByDate = async (req: FastifyRequest, reply: FastifyReply) => {
+  const { startDate, endDate } = req.query as {
+    startDate?: string;
+    endDate?: string;
+  };
+
+  if (!startDate && !endDate) {
+    return reply.code(400).send({ message: 'Please provide startDate or endDate' });
+  }
+
+  try {
+    const filters: any = { status: 'success' };
+
+    if (startDate || endDate) {
+      filters.paymentDate = {};
+      if (startDate) filters.paymentDate.gte = new Date(startDate);
+      if (endDate) filters.paymentDate.lte = new Date(endDate);
+    }
+
+    const transactions = await req.server.prisma.transportTransaction.findMany({
+      where: filters,
+      orderBy: { paymentDate: 'desc' },
+      include: {
+        student: true,
+        feeStructure: true,
+      },
+    });
+
+    const totalCollection = transactions.reduce((sum, txn) => {
+      return sum + (txn.amount || 0) + (txn.fineAmount || 0);
+    }, 0);
+
+    return reply.send({
+      status: 200,
+      message: 'Filtered transactions fetched successfully',
+      transactions,
+      totalCollection,
+    });
+  } catch (err: any) {
+    console.error("FILTER DATE TRANSACTION ERROR:", err);
+    return reply.code(500).send({
+      message: 'Failed to fetch filtered transactions',
+      error: err.message,
+    });
+  }
+};
+
+
+
+export const getTodayTransactions = async (req: FastifyRequest, reply: FastifyReply) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  try {
+    const transactions = await req.server.prisma.transportTransaction.findMany({
+      where: {
+        paymentDate: {
+          gte: today,
+          lt: tomorrow,
+        },
+        status: 'success',
+      },
+      orderBy: { paymentDate: 'desc' },
+      include: {
+        student: true,
+        feeStructure: true,
+      },
+    });
+
+    const totalCollection = transactions.reduce((sum, txn) => {
+      return sum + (txn.amount || 0) + (txn.fineAmount || 0);
+    }, 0);
+
+    return reply.send({ transactions, totalCollection });
+  } catch (error: any) {
+    return reply.code(500).send({ message: 'Error fetching today’s transactions', error: error.message });
+  }
+};
+
+
+
+
