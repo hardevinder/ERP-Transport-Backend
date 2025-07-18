@@ -30,6 +30,35 @@ interface FeeDueQuery {
   limit?: string;
 }
 
+interface MappedFeeDue {
+  studentId: string;
+  studentName: string;
+  class: string | null;
+  admissionNo: string | null;
+  route: string | null;
+  stop: string | null;
+  vehicle?: string | null;
+  slabs: {
+    slab: string;
+    feeStructureId: string;
+    dueAmount: number;
+    concession: number;
+    fine: number;
+    finalPayable: number;
+    status: string;
+    paidAmount: number;
+    paymentDate: Date | null;
+    dueDate: Date | null;
+    slipId: number | null;
+  }[];
+}
+
+interface SlabLessStudent {
+  studentId: string;
+  slabs: [];
+}
+
+const result: (MappedFeeDue | SlabLessStudent)[] = [];
 
 export const recordTransaction = async (req: FastifyRequest, reply: FastifyReply) => {
   const body = req.body as RecordTransactionBody;
@@ -697,9 +726,6 @@ export const getTodayTransactions = async (req: FastifyRequest, reply: FastifyRe
 };
 
 
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { Prisma } from '@prisma/client';
-import { getDueDate } from '../../utils/getDueDate';
 
 export const getAllFeeDueDetails = async (req: FastifyRequest, reply: FastifyReply) => {
   try {
@@ -771,7 +797,17 @@ export const getAllFeeDueDetails = async (req: FastifyRequest, reply: FastifyRep
       });
 
       if (feeStructures.length === 0) {
-        result.push({ studentId: student.id, slabs: [] });
+                result.push({
+                studentId: student.id,
+                studentName: student.name,
+                class: student.class?.name ?? null,
+                admissionNo: student.admissionNumber ?? null,
+                route: student.route?.name ?? null,
+                stop: student.stop?.stopName ?? null,
+                vehicle: student.vehicle?.busNo ?? null,
+                slabs: [],
+              });
+
         continue;
       }
 
