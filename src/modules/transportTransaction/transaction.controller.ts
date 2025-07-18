@@ -25,6 +25,12 @@ interface RecordTransactionBody {
   slabs: SlabPayment[];
 }
 
+interface FeeDueQuery {
+  page?: string;
+  limit?: string;
+}
+
+
 export const recordTransaction = async (req: FastifyRequest, reply: FastifyReply) => {
   const body = req.body as RecordTransactionBody;
 
@@ -691,9 +697,28 @@ export const getTodayTransactions = async (req: FastifyRequest, reply: FastifyRe
 };
 
 
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { Prisma } from '@prisma/client';
+import { getDueDate } from '../../utils/getDueDate';
+
 export const getAllFeeDueDetails = async (req: FastifyRequest, reply: FastifyReply) => {
   try {
     const now = new Date();
+
+    const {
+      page = '1',
+      limit = '10',
+      class: classFilter,
+      route: routeFilter,
+      vehicle: vehicleFilter,
+      admissionNo: admissionNoFilter,
+      slab: slabFilter,
+    } = req.query as Record<string, string>;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const startIndex = (pageNum - 1) * limitNum;
+
     const fineSetting = await req.server.prisma.fineSetting.findFirst();
 
     const students = await req.server.prisma.student.findMany({
@@ -701,8 +726,8 @@ export const getAllFeeDueDetails = async (req: FastifyRequest, reply: FastifyRep
         route: true,
         stop: true,
         concession: true,
-        class: true, // ✅ include class to fix student.class?.name redline
-        vehicle: true, // ✅ Include vehicle to access busNo
+        class: true,
+        vehicle: true,
       },
     }) as Prisma.StudentGetPayload<{
       include: {
@@ -710,7 +735,7 @@ export const getAllFeeDueDetails = async (req: FastifyRequest, reply: FastifyRep
         stop: true;
         concession: true;
         class: true;
-        vehicle: true; // ✅ also include here
+        vehicle: true;
       };
     }>[];
 
@@ -805,19 +830,40 @@ export const getAllFeeDueDetails = async (req: FastifyRequest, reply: FastifyRep
         admissionNo: student.admissionNumber ?? null,
         route: student.route?.name ?? null,
         stop: student.stop?.stopName ?? null,
-        vehicle: student.vehicle?.busNo ?? null, // ✅ Add bus number
+        vehicle: student.vehicle?.busNo ?? null,
         slabs,
       });
-
     }
 
-    return reply.send({ count: result.length, data: result });
+    // ✅ Filtering
+    let filteredResult = result;
+
+    if (classFilter) filteredResult = filteredResult.filter(s => s.class === classFilter);
+    if (routeFilter) filteredResult = filteredResult.filter(s => s.route === routeFilter);
+    if (vehicleFilter) filteredResult = filteredResult.filter(s => s.vehicle === vehicleFilter);
+    if (admissionNoFilter) filteredResult = filteredResult.filter(s => s.admissionNo?.includes(admissionNoFilter));
+    if (slabFilter) {
+      filteredResult = filteredResult.map(s => ({
+        ...s,
+        slabs: s.slabs.filter(slab => slab.slab === slabFilter)
+      })).filter(s => s.slabs.length > 0);
+    }
+
+    // ✅ Paginate filtered results
+    const total = filteredResult.length;
+    const paginated = filteredResult.slice(startIndex, startIndex + limitNum);
+
+    return reply.send({
+      count: total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+      data: paginated,
+    });
   } catch (err: any) {
     req.log.error(err);
     return reply.code(500).send({ message: 'Failed to fetch all fee dues', error: err.message });
   }
 };
-
 
 
 
