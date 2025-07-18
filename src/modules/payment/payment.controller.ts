@@ -59,21 +59,28 @@ export const createRazorpayOrder = async (
   req: FastifyRequest<{ Body: CreateOrderBody }>,
   reply: FastifyReply
 ) => {
-  const { studentId, amount, slabs } = req.body;
+  const { studentId, amount: baseAmount, slabs } = req.body;
 
-  if (!studentId || !amount || !Array.isArray(slabs) || slabs.length === 0) {
+  if (!studentId || !baseAmount || !Array.isArray(slabs) || slabs.length === 0) {
     return reply.code(400).send({ message: 'Missing required fields' });
   }
 
   try {
+    // 💰 Add 2.36% Razorpay fee
+    const totalChargePercent = 0.0236;
+    const amount = Math.round(baseAmount / (1 - totalChargePercent));
+
     const description = slabs.map(s => s.slab).join(', ');
     const order = await razorpay.orders.create({
-      amount: Math.round(amount),
+      amount: amount, // in paise if not multiplied earlier
       currency: 'INR',
       receipt: `rcpt_${studentId.slice(0, 6)}_${Date.now()}`,
       notes: {
         studentId,
         slabs: JSON.stringify(slabs),
+        baseAmount: baseAmount.toString(),
+        withCharges: amount.toString(),
+        note: 'Includes 2.36% Razorpay charges',
       },
     });
 
