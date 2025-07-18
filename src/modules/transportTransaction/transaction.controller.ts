@@ -1,5 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { generateSlabs } from '../../utils/generateSlabs';
+import { Prisma } from '@prisma/client';
+
 
 interface SlabPayment {
   feeStructureId: string;
@@ -10,6 +12,10 @@ interface SlabPayment {
   transactionId?: string;
   razorpayOrderId?: string;     // ✅ Add this
   razorpayPaymentId?: string;   // ✅ Add this
+
+  chequeNo?: string;          // ✅ New
+  chequeDate?: string;        // ✅ New
+  bankName?: string;          // ✅ New
 }
 
 interface RecordTransactionBody {
@@ -70,6 +76,14 @@ export const recordTransaction = async (req: FastifyRequest, reply: FastifyReply
 
         const dueAmount = feeStructure.amount;
 
+          // 🔐 Validate cheque fields if mode is "cheque"
+          if (body.mode === 'cheque') {
+            if (!slab.chequeNo || !slab.chequeDate || !slab.bankName) {
+              throw new Error('Cheque number, date, and bank name are required for cheque payments');
+            }
+          }
+
+
         let concession = 0;
         if (slab.concession !== undefined) {
           concession = slab.concession;
@@ -109,6 +123,11 @@ export const recordTransaction = async (req: FastifyRequest, reply: FastifyReply
           createdAt: now,
           razorpayOrderId: slab.razorpayOrderId ?? null,     // ✅ New
           razorpayPaymentId: slab.razorpayPaymentId ?? null, // ✅ New
+
+          // ✅ Cheque-specific
+          chequeNo: slab.chequeNo ?? null,
+          chequeDate: slab.chequeDate ? new Date(slab.chequeDate) : null,
+          bankName: slab.bankName ?? null,
         },
       });
 
@@ -443,7 +462,9 @@ export const getFeeDueDetails = async (req: FastifyRequest, reply: FastifyReply)
       const finalPayable = Math.max(dueAmount + fine - paid, 0);
 
       return {
-        slab: fs.slab,
+        slab: fs.slab.includes(' - ') && fs.slab.split(' - ')[0] === fs.slab.split(' - ')[1]
+        ? fs.slab.split(' - ')[0]
+        : fs.slab,
         feeStructureId: fs.id,
         dueAmount,
         concession,
@@ -668,6 +689,136 @@ export const getTodayTransactions = async (req: FastifyRequest, reply: FastifyRe
     return reply.code(500).send({ message: 'Error fetching today’s transactions', error: error.message });
   }
 };
+
+
+export const getAllFeeDueDetails = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const now = new Date();
+    const fineSetting = await req.server.prisma.fineSetting.findFirst();
+
+    const students = await req.server.prisma.student.findMany({
+      include: {
+        route: true,
+        stop: true,
+        concession: true,
+        class: true, // ✅ include class to fix student.class?.name redline
+        vehicle: true, // ✅ Include vehicle to access busNo
+      },
+    }) as Prisma.StudentGetPayload<{
+      include: {
+        route: true;
+        stop: true;
+        concession: true;
+        class: true;
+        vehicle: true; // ✅ also include here
+      };
+    }>[];
+
+    const allTxns = await req.server.prisma.transportTransaction.findMany({
+      where: { status: 'success' },
+      include: { feeStructure: true },
+    });
+
+    const optOuts = await req.server.prisma.studentOptOutSlab.findMany();
+
+    const monthOrder: Record<string, number> = {
+      Apr: 1, May: 2, Jun: 3, Jul: 4, Aug: 5, Sep: 6,
+      Oct: 7, Nov: 8, Dec: 9, Jan: 10, Feb: 11, Mar: 12,
+    };
+
+    const result = [];
+
+    for (const student of students) {
+      if (!student.routeId || !student.stopId) continue;
+
+      const studentOptOuts = new Set(
+        optOuts.filter(o => o.studentId === student.id).map(o => o.feeStructureId)
+      );
+
+      const feeStructures = await req.server.prisma.transportFeeStructure.findMany({
+        where: {
+          routeId: student.routeId,
+          stopId: student.stopId,
+          effectiveFrom: { lte: now },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
+          id: { notIn: Array.from(studentOptOuts) },
+        },
+      });
+
+      if (feeStructures.length === 0) {
+        result.push({ studentId: student.id, slabs: [] });
+        continue;
+      }
+
+      feeStructures.sort((a, b) =>
+        monthOrder[a.slab.split(' - ')[0]] - monthOrder[b.slab.split(' - ')[0]]
+      );
+
+      const studentTxns = allTxns.filter(tx => tx.studentId === student.id);
+
+      const slabs = feeStructures.map(fs => {
+        const dueAmount = fs.amount;
+        const dueDate = getDueDate(fs.slab, fs.frequency, fineSetting);
+
+        const relatedTxns = studentTxns.filter(tx => tx.feeStructureId === fs.id);
+        const paid = relatedTxns.reduce((sum, tx) => sum + tx.amount + (tx.concession || 0), 0);
+        const latest = relatedTxns.sort((a, b) => b.paymentDate.getTime() - a.paymentDate.getTime())[0];
+
+        let concession = 0;
+        if (student.concession) {
+          concession = student.concession.type === 'percentage'
+            ? (dueAmount * student.concession.value) / 100
+            : student.concession.value;
+        }
+
+        let fine = 0;
+        if (relatedTxns.length === 0 && fineSetting && dueDate && now > dueDate) {
+          const daysLate = Math.floor((now.getTime() - dueDate.getTime()) / 86400000);
+          fine = fineSetting.duration === 'per_day' ? daysLate * fineSetting.amount : fineSetting.amount;
+        }
+
+        const finalPayable = Math.max(dueAmount + fine - paid, 0);
+
+        const slabLabel = fs.slab.includes(' - ') && fs.slab.split(' - ')[0] === fs.slab.split(' - ')[1]
+          ? fs.slab.split(' - ')[0]
+          : fs.slab;
+
+        return {
+          slab: slabLabel,
+          feeStructureId: fs.id,
+          dueAmount,
+          concession,
+          fine,
+          finalPayable,
+          status: finalPayable <= 0 ? 'Paid' : 'Due',
+          paidAmount: paid,
+          paymentDate: latest?.paymentDate || null,
+          dueDate,
+          slipId: latest?.slipId || null,
+        };
+      });
+
+      result.push({
+        studentId: student.id,
+        studentName: student.name,
+        class: student.class?.name ?? null,
+        admissionNo: student.admissionNumber ?? null,
+        route: student.route?.name ?? null,
+        stop: student.stop?.stopName ?? null,
+        vehicle: student.vehicle?.busNo ?? null, // ✅ Add bus number
+        slabs,
+      });
+
+    }
+
+    return reply.send({ count: result.length, data: result });
+  } catch (err: any) {
+    req.log.error(err);
+    return reply.code(500).send({ message: 'Failed to fetch all fee dues', error: err.message });
+  }
+};
+
+
 
 
 

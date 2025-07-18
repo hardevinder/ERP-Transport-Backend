@@ -21,6 +21,8 @@ export const getFeeSummaries = async (req: FastifyRequest, reply: FastifyReply) 
       stop: true,
       class: true,
       concession: true,
+      vehicle: true, // ✅ ADD THIS LINE
+
     },
     orderBy: { name: 'asc' },
   });
@@ -97,6 +99,7 @@ export const getFeeSummaries = async (req: FastifyRequest, reply: FastifyReply) 
         class: student.class?.name || '',
         route: student.route?.name || '',
         stop: student.stop?.stopName || '',
+        vehicle: student.vehicle?.busNo || '', // ✅ ADD THIS LINE
         expectedAmount,
         concession,
         fine,
@@ -107,4 +110,79 @@ export const getFeeSummaries = async (req: FastifyRequest, reply: FastifyReply) 
   );
 
   reply.send({ currentMonth: currentMonthLabel, summaries });
+};
+
+export const getStudentsByVehicle = async (req: FastifyRequest, reply: FastifyReply) => {
+  const prisma = req.server.prisma;
+  const { vehicleId } = req.params as { vehicleId: string };
+  const now = dayjs();
+  const isoNow = now.toISOString();
+
+  try {
+    const students = await prisma.student.findMany({
+      where: {
+        status: 'active',
+        vehicleId,
+      },
+      include: {
+        class: true,
+        route: true,
+        stop: true,
+        concession: true,
+      },
+    });
+
+    const result = await Promise.all(
+      students.map(async (student) => {
+        const feeStructures = await prisma.transportFeeStructure.findMany({
+          where: {
+            routeId: student.routeId || undefined,
+            stopId: student.stopId || undefined,
+            effectiveFrom: { lte: isoNow },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gte: isoNow } }],
+          },
+        });
+
+        const expectedAmount = feeStructures.reduce((sum, fs) => sum + fs.amount, 0);
+
+        let concession = 0;
+        if (student.concession) {
+          concession =
+            student.concession.type === 'percentage'
+              ? (expectedAmount * student.concession.value) / 100
+              : student.concession.value;
+        }
+
+        const paid = await prisma.transportTransaction.aggregate({
+          _sum: { amount: true },
+          where: {
+            studentId: student.id,
+            status: 'success',
+          },
+        });
+
+        const paidAmount = paid._sum.amount || 0;
+        const finalPayable = expectedAmount - concession;
+        const pendingAmount = Math.max(finalPayable - paidAmount, 0);
+
+        return {
+          studentId: student.id,
+          name: student.name,
+          phone: student.phone,
+          class: student.class?.name || '',
+          route: student.route?.name || '',
+          stop: student.stop?.stopName || '',
+          expectedAmount,
+          concession,
+          paidAmount,
+          pendingAmount,
+        };
+      })
+    );
+
+    return reply.send({ vehicleId, totalStudents: result.length, students: result });
+  } catch (err) {
+    console.error('🚨 Vehicle fee summary error:', err);
+    return reply.code(500).send({ message: 'Failed to fetch student summaries' });
+  }
 };

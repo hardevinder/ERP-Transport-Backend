@@ -21,10 +21,11 @@ export const createStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     classId,
     routeId,
     stopId,
+    vehicleId, // ✅ newly added
     concessionId,
     addressLine,
     cityOrVillage,
-    gender, // ✅ added
+    gender,
   } = req.body as {
     name: string;
     phone: string;
@@ -33,6 +34,7 @@ export const createStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     classId?: string;
     routeId?: string;
     stopId?: string;
+    vehicleId?: string; // ✅ type added
     concessionId?: string;
     addressLine?: string;
     cityOrVillage?: string;
@@ -58,16 +60,18 @@ export const createStudent = async (req: FastifyRequest, reply: FastifyReply) =>
       classId,
       routeId,
       stopId,
+      vehicleId, // ✅ save vehicle ID
       feeSlab,
       concessionId,
       addressLine,
       cityOrVillage,
-      gender, // ✅ saved
+      gender,
     },
     include: {
       route: true,
       stop: true,
       class: true,
+      vehicle: true, // ✅ include vehicle
       transactions: true,
     },
   });
@@ -86,10 +90,11 @@ export const updateStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     classId,
     routeId,
     stopId,
+    vehicleId, // ✅ newly added
     concessionId,
     addressLine,
     cityOrVillage,
-    gender, // ✅ added
+    gender,
   } = req.body as {
     name?: string;
     phone?: string;
@@ -98,6 +103,7 @@ export const updateStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     classId?: string;
     routeId?: string;
     stopId?: string;
+    vehicleId?: string; // ✅ type added
     concessionId?: string;
     addressLine?: string;
     cityOrVillage?: string;
@@ -114,10 +120,11 @@ export const updateStudent = async (req: FastifyRequest, reply: FastifyReply) =>
     classId,
     routeId,
     stopId,
+    vehicleId, // ✅ added to update data
     concessionId,
     addressLine,
     cityOrVillage,
-    gender, // ✅ updated
+    gender,
   };
 
   if (password) {
@@ -127,7 +134,13 @@ export const updateStudent = async (req: FastifyRequest, reply: FastifyReply) =>
   const updated = await req.server.prisma.student.update({
     where: { id },
     data: updatedData,
-    include: { route: true, stop: true, class: true, transactions: true },
+    include: {
+      route: true,
+      stop: true,
+      class: true,
+      vehicle: true, // ✅ include vehicle in response
+      transactions: true,
+    },
   });
 
   reply.send(updated);
@@ -143,6 +156,7 @@ export const getStudentById = async (req: FastifyRequest, reply: FastifyReply) =
       route: true,
       stop: true,
       class: true,
+      vehicle: true, // ✅ include assigned vehicle
       transactions: {
         orderBy: { paymentDate: 'desc' },
       },
@@ -155,6 +169,7 @@ export const getStudentById = async (req: FastifyRequest, reply: FastifyReply) =
 
   reply.send(student);
 };
+
 
 // ❌ Delete student
 export const deleteStudent = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -192,6 +207,7 @@ export const getAllStudents = async (req: FastifyRequest, reply: FastifyReply) =
       route: true,
       stop: true,
       class: true,
+      vehicle: true, // ✅ include assigned vehicle
       transactions: true,
     },
     orderBy: {
@@ -219,6 +235,7 @@ export const studentLogin = async (req: FastifyRequest, reply: FastifyReply) => 
       route: { include: { driver: true } },
       stop: true,
       class: true,
+      vehicle: true, // ✅ include vehicle
       transactions: {
         orderBy: { paymentDate: 'desc' },
       },
@@ -246,9 +263,10 @@ export const studentLogin = async (req: FastifyRequest, reply: FastifyReply) => 
       class: student.class,
       route: student.route,
       stop: student.stop,
+      vehicle: student.vehicle, // ✅ include vehicle in response
       addressLine: student.addressLine,
       cityOrVillage: student.cityOrVillage,
-       profilePicture: student.profilePicture, // ✅ ADD THIS LINE
+      profilePicture: student.profilePicture,
       gender: student.gender,
       transactions: student.transactions,
     },

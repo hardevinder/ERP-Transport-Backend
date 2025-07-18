@@ -15,6 +15,8 @@ model Vehicle {
   driverId  String?
 
   routes    Route[]   @relation("VehicleToRoute")
+  students  Student[] // 👈 back-relation added
+
   status    String    @default("active")
   createdAt DateTime  @default(now())
 }
@@ -105,6 +107,10 @@ model Student {
   route           Route?                   @relation(fields: [routeId], references: [id])
   stopId          String?
   stop            RouteStop?               @relation("StopStudents", fields: [stopId], references: [id])
+
+  vehicleId       String?                  // 👈 new field
+  vehicle         Vehicle?                 @relation(fields: [vehicleId], references: [id]) // 👈 relation
+
   feeSlab         String
   concessionId    String?
   concession      ConcessionSetting?       @relation("ConcessionToStudent", fields: [concessionId], references: [id])
@@ -117,7 +123,7 @@ model Student {
   profilePicture  String?  
 
   transactions    TransportTransaction[]
-  optOutSlabs     StudentOptOutSlab[]      // ← new back-relation
+  optOutSlabs     StudentOptOutSlab[]
 }
 
 model TransportFeeStructure {
@@ -134,7 +140,7 @@ model TransportFeeStructure {
   route         Route                    @relation(fields: [routeId], references: [id])
   stop          RouteStop?               @relation(fields: [stopId], references: [id])
   transactions  TransportTransaction[]
-  optOutSlabs   StudentOptOutSlab[]      // ← new back-relation
+  optOutSlabs   StudentOptOutSlab[]
 }
 
 model TransportTransaction {
@@ -149,18 +155,21 @@ model TransportTransaction {
   concession         Float?
   fine               Float?
   fineConcession     Float?
-  mode               String
+  mode               String                // "online", "cash", "cheque", etc.
   status             String
   paymentDate        DateTime
   createdAt          DateTime             @default(now())
 
-  razorpayOrderId    String?              // 🔥 Add this
-  razorpayPaymentId  String?              @unique // 🔥 Add this if not already there
+  razorpayOrderId    String?
+  razorpayPaymentId  String?              @unique
+
+  chequeNo           String?              // 👈 new
+  chequeDate         DateTime?            // 👈 new
+  bankName           String?              // 👈 new
 
   student            Student              @relation(fields: [studentId], references: [id])
   feeStructure       TransportFeeStructure @relation(fields: [feeStructureId], references: [id])
 }
-
 
 model Payment {
   id                String   @id @default(uuid())
